@@ -1,0 +1,1 @@
+// File removed based on user request to simplify and remove video generation.
