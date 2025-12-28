@@ -16,7 +16,7 @@ const App: React.FC = () => {
   const [state, setState] = useState<BusinessState>(INITIAL_STATE);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [drawerMode, setDrawerMode] = useState<'customer' | 'product' | 'tahsilat' | 'stok_alimi'>('customer');
+  const [drawerMode, setDrawerMode] = useState<'customer' | 'product' | 'tahsilat' | 'stok_alimi' | 'profile'>('customer');
   const [isProcessingAI, setIsProcessingAI] = useState(false);
   const [initialChatValue, setInitialChatValue] = useState('');
   
@@ -32,6 +32,7 @@ const App: React.FC = () => {
 
   const [editCustomer, setEditCustomer] = useState<Partial<Customer>>({});
   const [editProduct, setEditProduct] = useState<Partial<Product>>({});
+  const [editProfile, setEditProfile] = useState<Partial<BusinessProfile>>({});
   
   // Manual transaction states
   const [manualAmount, setManualAmount] = useState<number>(0);
@@ -187,6 +188,15 @@ const App: React.FC = () => {
         return { ...prev, products: [newProduct, ...prev.products] };
       }
     });
+    setIsDrawerOpen(false);
+  };
+
+  const handleSaveProfile = () => {
+    if (!editProfile.name) return alert("İşletme adı zorunludur.");
+    setState(prev => ({
+      ...prev,
+      profile: { ...prev.profile, ...editProfile } as BusinessProfile
+    }));
     setIsDrawerOpen(false);
   };
 
@@ -359,6 +369,7 @@ const App: React.FC = () => {
       case 'dashboard': return <div key="dashboard" className={commonClass}><Dashboard state={state} onAskAI={handleDashboardSubmit} onStartTyping={handleStartTyping} isProcessing={isProcessingAI} /></div>;
       
       // FIXED: Adjusted height calculation for Desktop Chat to fit perfectly without window scroll
+      // Uses 10rem to offset the 9rem padding (pt-36) + some bottom spacing, preventing main window scroll
       case 'chat': return (
         <div key="chat" className="page-transition h-[calc(100vh-6rem)] md:h-[calc(100vh-10rem)] -mt-4 md:mt-0 pb-0">
            <ChatInterface state={state} initialValue={initialChatValue} onUpdateState={handleUpdateChat} onAddUserMessage={handleAddUserMessage} onNewChat={() => {}} onSelectChat={(id) => setState(p=>({...p, currentChatId:id}))} onConfirmDraft={handleConfirmDraft} />
@@ -366,7 +377,7 @@ const App: React.FC = () => {
       );
       
       case 'customers': return <div key="customers" className={commonClass}><CustomerList customers={state.customers} onSelect={(id) => { const c = state.customers.find(c=>c.id===id); if(c){ setSelectedCustomer(c); setViewMode('detail'); } }} onAddNew={() => { setEditCustomer({name:''}); setDrawerMode('customer'); setIsDrawerOpen(true); }} /></div>;
-      case 'profile': return <div key="profile" className={commonClass}><Profile profile={state.profile} /></div>;
+      case 'profile': return <div key="profile" className={commonClass}><Profile profile={state.profile} onEdit={() => { setEditProfile(state.profile); setDrawerMode('profile'); setIsDrawerOpen(true); }} /></div>;
       case 'products': 
         return (
           <div key="products" className={commonClass}>
@@ -446,8 +457,8 @@ const App: React.FC = () => {
       {/* Mobile Navigation Bar */}
       <MobileNavBar activeTab={activeTab} setActiveTab={setActiveTab} />
 
-      <SideDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} title={drawerMode === 'customer' ? 'Müşteri Kaydı' : drawerMode === 'product' ? 'Ürün Kaydı' : drawerMode === 'tahsilat' ? 'Tahsilat Girişi' : 'Stok Alımı'}>
-         {/* Drawer Content - Unchanged */}
+      <SideDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} title={drawerMode === 'customer' ? 'Müşteri Kaydı' : drawerMode === 'product' ? 'Ürün Kaydı' : drawerMode === 'tahsilat' ? 'Tahsilat Girişi' : drawerMode === 'profile' ? 'İşletme Profili' : 'Stok Alımı'}>
+         {/* Drawer Content */}
          {drawerMode === 'customer' ? (
            <div className="space-y-10">
               <div className="space-y-6">
@@ -493,6 +504,44 @@ const App: React.FC = () => {
               </div>
               <button onClick={handleManualStockEntry} className="w-full bg-slate-900 text-white py-5 rounded-[24px] font-black uppercase tracking-widest text-sm shadow-xl hover:bg-blue-900">Stok Girişini Yap</button>
            </div>
+         ) : drawerMode === 'profile' ? (
+            <div className="space-y-10">
+                <div className="space-y-6">
+                    <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">İşletme Adı</label>
+                        <input className="w-full text-xl font-bold border-b-2 border-slate-100 focus:border-[#1A237E] py-2 outline-none" value={editProfile.name || ''} onChange={e => setEditProfile({...editProfile, name: e.target.value})} placeholder="İşletme Adı" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Sahibi</label>
+                            <input className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold" value={editProfile.ownerName || ''} onChange={e => setEditProfile({...editProfile, ownerName: e.target.value})} placeholder="Ad Soyad" />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Sektör</label>
+                            <input className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold" value={editProfile.sector || ''} onChange={e => setEditProfile({...editProfile, sector: e.target.value})} placeholder="Sektör" />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Vergi Dairesi</label>
+                            <input className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold" value={editProfile.taxOffice || ''} onChange={e => setEditProfile({...editProfile, taxOffice: e.target.value})} placeholder="V.D." />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Vergi No</label>
+                            <input className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold" value={editProfile.taxNumber || ''} onChange={e => setEditProfile({...editProfile, taxNumber: e.target.value})} placeholder="VKN" />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Telefon</label>
+                        <input className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold" value={editProfile.phone || ''} onChange={e => setEditProfile({...editProfile, phone: e.target.value})} placeholder="05XX..." />
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Adres</label>
+                        <textarea className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-medium" rows={3} placeholder="Açık Adres" value={editProfile.address || ''} onChange={e => setEditProfile({...editProfile, address: e.target.value})} />
+                    </div>
+                </div>
+                <button onClick={handleSaveProfile} className="w-full bg-slate-900 text-white py-5 rounded-[24px] font-black uppercase tracking-widest text-sm shadow-xl hover:bg-[#1A237E]">Profil Bilgilerini Güncelle</button>
+            </div>
          ) : (
            <div className="p-10 text-center text-slate-400 font-bold uppercase tracking-widest">Form Detayları...</div>
          )}
