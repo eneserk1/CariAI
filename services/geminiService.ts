@@ -10,7 +10,7 @@ export class GeminiService {
     const historyContext = history.map(h => `${h.role === 'user' ? 'Müşteri' : 'Asistan'}: ${h.content}`).join('\n');
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
+      model: "gemini-3-flash-preview",
       contents: `Sistem Verileri: ${JSON.stringify({ 
         customers: currentState.customers, 
         products: currentState.products 
@@ -18,7 +18,7 @@ export class GeminiService {
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
         responseMimeType: "application/json",
-        thinkingConfig: { thinkingBudget: 4000 }, // Enable reasoning for high quality business insights
+        // thinkingConfig kaldırıldı: Token tasarrufu ve hız için.
         responseSchema: {
           type: Type.OBJECT,
           properties: {
