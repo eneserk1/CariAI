@@ -7,10 +7,11 @@ interface DashboardProps {
   onAskAI: (query: string) => void;
   onStartTyping: (initialChar: string) => void;
   onManualSale: () => void;
+  onViewTransactions: () => void;
   isProcessing: boolean;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ state, onAskAI, onStartTyping, onManualSale, isProcessing }) => {
+const Dashboard: React.FC<DashboardProps> = ({ state, onAskAI, onStartTyping, onManualSale, onViewTransactions, isProcessing }) => {
   const [query, setQuery] = useState('');
 
   const totalReceivable = state.customers.reduce((acc, c) => acc + (c.balance > 0 ? c.balance : 0), 0);
@@ -34,6 +35,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onAskAI, onStartTyping, on
 
   return (
     <div className="max-w-6xl mx-auto space-y-12 py-10 page-transition">
+      {/* Magic Bar Section */}
       <div className="relative z-10">
         <div className="absolute -inset-2 bg-gradient-to-r from-blue-600 via-indigo-500 to-emerald-500 rounded-[40px] blur-2xl opacity-10 dark:opacity-20 group-hover:opacity-20 transition duration-1000"></div>
         <div className="relative bg-white/70 dark:bg-slate-900/70 backdrop-blur-3xl border border-white dark:border-slate-800 p-10 rounded-[40px] shadow-2xl shadow-blue-900/5">
@@ -70,6 +72,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onAskAI, onStartTyping, on
         </div>
       </div>
 
+      {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white dark:bg-slate-900 p-8 rounded-[32px] border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-2xl hover:-translate-y-1 transition-all group overflow-hidden relative">
           <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 dark:bg-emerald-900/10 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-700"></div>
@@ -106,6 +109,43 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onAskAI, onStartTyping, on
             <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-2 leading-relaxed relative z-10">{insight.description}</p>
           </div>
         ))}
+      </div>
+
+      {/* Global Activity Preview */}
+      <div className="bg-white dark:bg-slate-900 rounded-[40px] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+         <div className="p-8 md:p-10 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-slate-50/30 dark:bg-slate-800/30">
+            <h3 className="font-black text-xl text-slate-900 dark:text-white">Son Hareketler</h3>
+            <button 
+              onClick={onViewTransactions}
+              className="text-[11px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest hover:text-blue-800 transition-colors"
+            >
+              Tümünü Gör →
+            </button>
+         </div>
+         <div className="divide-y divide-slate-50 dark:divide-slate-800">
+            {state.transactions.slice(0, 5).map(t => (
+               <div key={t.id} className="p-6 md:p-8 flex items-center justify-between hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
+                  <div className="flex items-center space-x-6">
+                    <div className={`w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center font-black text-sm md:text-base ${t.type === 'SALE' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20' : t.type === 'PAYMENT' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20' : 'bg-red-50 text-red-600 dark:bg-red-900/20'}`}>{t.type[0]}</div>
+                    <div>
+                      <p className="font-black text-slate-900 dark:text-white text-sm md:text-base leading-tight">{t.customerName}</p>
+                      <p className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">{t.productName || t.note} {t.quantity ? `• ${t.quantity} Adet` : ''}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className={`font-black text-base md:text-lg ${t.type === 'SALE' ? 'text-slate-900 dark:text-white' : t.type === 'PAYMENT' ? 'text-emerald-600' : 'text-red-500'}`}>
+                      ₺{t.totalAmount.toLocaleString('tr-TR')}
+                    </p>
+                    <p className="text-[9px] md:text-[10px] font-bold text-slate-300 uppercase mt-0.5">{new Date(t.date).toLocaleDateString('tr-TR')}</p>
+                  </div>
+               </div>
+            ))}
+            {state.transactions.length === 0 && (
+              <div className="p-20 text-center">
+                <p className="text-slate-400 font-bold">Henüz bir hareket bulunmuyor.</p>
+              </div>
+            )}
+         </div>
       </div>
     </div>
   );

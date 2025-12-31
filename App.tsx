@@ -30,7 +30,7 @@ const App: React.FC = () => {
   const [showFloatingButton, setShowFloatingButton] = useState(false);
   const [isChatPopupOpen, setIsChatPopupOpen] = useState(false);
 
-  const [viewMode, setViewMode] = useState<'list' | 'detail'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'detail' | 'transactions'>('list');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
@@ -42,6 +42,8 @@ const App: React.FC = () => {
   const [manualQuantity, setManualQuantity] = useState<number>(1);
   const [targetCustomerId, setTargetCustomerId] = useState<string | null>(null);
   const [targetProductId, setTargetProductId] = useState<string | null>(null);
+
+  const [txFilter, setTxFilter] = useState<'ALL' | 'SALE' | 'PURCHASE' | 'PAYMENT'>('ALL');
 
   useEffect(() => {
     const initData = async () => {
@@ -69,7 +71,6 @@ const App: React.FC = () => {
 
   const toggleDarkMode = () => setIsDarkMode(prev => !prev);
 
-  // Navigasyon Yardımcıları
   const showCustomerDetail = (customer: Customer) => {
     setSelectedProduct(null);
     setSelectedCustomer(customer);
@@ -416,6 +417,59 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     const commonClass = "page-transition max-w-6xl mx-auto pb-24 md:pb-0";
+    
+    // İşlem Defteri Görünümü (Dashboard'un Detayı)
+    if (activeTab === 'dashboard' && viewMode === 'transactions') {
+       const filteredTxs = state.transactions.filter(t => txFilter === 'ALL' || t.type === txFilter);
+       return (
+         <div className={commonClass}>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
+               <div>
+                  <button onClick={() => setViewMode('list')} className="flex items-center text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest text-xs hover:text-slate-900 dark:hover:text-white transition-colors mb-4">
+                    <span className="mr-2 text-xl">←</span> Panale Dön
+                  </button>
+                  <h2 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">İşlem Defteri</h2>
+               </div>
+               <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl space-x-1">
+                  {(['ALL', 'SALE', 'PURCHASE', 'PAYMENT'] as const).map(f => (
+                    <button 
+                      key={f} 
+                      onClick={() => setTxFilter(f)}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${txFilter === f ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
+                    >
+                      {f === 'ALL' ? 'Hepsi' : f === 'SALE' ? 'Satış' : f === 'PURCHASE' ? 'Alış' : 'Tahsilat'}
+                    </button>
+                  ))}
+               </div>
+            </div>
+            <div className="bg-white dark:bg-slate-900 rounded-[40px] shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+               <div className="divide-y divide-slate-50 dark:divide-slate-800">
+                  {filteredTxs.map(t => (
+                    <div key={t.id} className="p-8 flex items-center justify-between hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
+                       <div className="flex items-center space-x-6">
+                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-base ${t.type === 'SALE' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20' : t.type === 'PAYMENT' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20' : 'bg-red-50 text-red-600 dark:bg-red-900/20'}`}>{t.type[0]}</div>
+                          <div>
+                             <p className="font-black text-slate-900 dark:text-white text-lg leading-tight mb-1">
+                               {t.customerName}
+                             </p>
+                             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                               {t.productName || t.note} {t.quantity ? `• ${t.quantity} Adet` : ''} • {new Date(t.date).toLocaleDateString('tr-TR')}
+                             </p>
+                          </div>
+                       </div>
+                       <div className="text-right">
+                          <p className={`text-2xl font-black ${t.type === 'SALE' ? 'text-slate-900 dark:text-white' : t.type === 'PAYMENT' ? 'text-emerald-600' : 'text-red-500'}`}>
+                            ₺{t.totalAmount.toLocaleString('tr-TR')}
+                          </p>
+                       </div>
+                    </div>
+                  ))}
+               </div>
+            </div>
+         </div>
+       );
+    }
+
     if (viewMode === 'detail') {
       if (selectedCustomer) {
         const customerTxs = state.transactions.filter(t => t.customerId === selectedCustomer.id);
@@ -539,7 +593,7 @@ const App: React.FC = () => {
     }
 
     switch (activeTab) {
-      case 'dashboard': return <div key="dashboard" className={commonClass}><Dashboard state={state} onAskAI={handleDashboardSubmit} onStartTyping={handleStartTyping} isProcessing={isProcessingAI} onManualSale={onManualSaleTrigger} /></div>;
+      case 'dashboard': return <div key="dashboard" className={commonClass}><Dashboard state={state} onAskAI={handleDashboardSubmit} onStartTyping={handleStartTyping} isProcessing={isProcessingAI} onManualSale={onManualSaleTrigger} onViewTransactions={() => setViewMode('transactions')} /></div>;
       case 'chat': return (
         <div key="chat" className="page-transition h-[calc(100vh-6rem)] md:h-[calc(100vh-10rem)] -mt-4 md:mt-0 pb-0">
            <ChatInterface state={state} initialValue={initialChatValue} onUpdateState={handleUpdateChat} onAddUserMessage={handleAddUserMessage} onNewChat={() => {}} onSelectChat={(id) => setState(p=>({...p, currentChatId:id}))} onConfirmDraft={handleConfirmDraft} />
