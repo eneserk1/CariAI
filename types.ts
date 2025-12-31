@@ -54,6 +54,10 @@ export interface ChatMessage {
   timestamp: number;
   draft?: any;
   confirmed?: boolean;
+  attachment?: {
+    name: string;
+    type: string;
+  };
 }
 
 export interface ChatSession {

@@ -1,7 +1,7 @@
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { INITIAL_STATE } from './constants';
-import { BusinessState, Transaction, Customer, Product, ChatSession, BusinessProfile, ChatMessage, DashboardInsight } from './types';
+import { BusinessState, Transaction, Customer, Product, ChatSession, BusinessProfile, ChatMessage } from './types';
 import Header from './components/Header';
 import MobileNavBar from './components/MobileNavBar';
 import Dashboard from './components/Dashboard';
@@ -11,21 +11,26 @@ import ChatInterface from './components/ChatInterface';
 import SideDrawer from './components/SideDrawer';
 import Profile from './components/Profile'; 
 import { geminiService } from './services/geminiService';
+import { dbService } from './services/db';
 
 const App: React.FC = () => {
   const [state, setState] = useState<BusinessState>(INITIAL_STATE);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [drawerMode, setDrawerMode] = useState<'customer' | 'product' | 'tahsilat' | 'stok_alimi' | 'profile'>('customer');
+  const [drawerMode, setDrawerMode] = useState<'customer' | 'product' | 'tahsilat' | 'stok_alimi' | 'profile' | 'manual_sale'>('customer');
   const [isProcessingAI, setIsProcessingAI] = useState(false);
   const [initialChatValue, setInitialChatValue] = useState('');
   
-  // Controls availability of the Floating Button
+  // Tema state'ini başlat ve localStorage ile senkronize et
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const saved = localStorage.getItem('theme');
+    if (saved) return saved === 'dark';
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+
   const [showFloatingButton, setShowFloatingButton] = useState(false);
-  // Controls the Visibility of the Popup Chat Window
   const [isChatPopupOpen, setIsChatPopupOpen] = useState(false);
 
-  // Detail View state
   const [viewMode, setViewMode] = useState<'list' | 'detail'>('list');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -34,10 +39,39 @@ const App: React.FC = () => {
   const [editProduct, setEditProduct] = useState<Partial<Product>>({});
   const [editProfile, setEditProfile] = useState<Partial<BusinessProfile>>({});
   
-  // Manual transaction states
   const [manualAmount, setManualAmount] = useState<number>(0);
+  const [manualQuantity, setManualQuantity] = useState<number>(1);
   const [targetCustomerId, setTargetCustomerId] = useState<string | null>(null);
   const [targetProductId, setTargetProductId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const initData = async () => {
+      try {
+        await dbService.init();
+        const loadedState = await dbService.seedData();
+        setState(loadedState);
+      } catch (err) {
+        console.error("DB Init Error:", err);
+      }
+    };
+    initData();
+  }, []);
+
+  // Tema değiştiğinde HTML sınıfını ve localStorage'ı güncelle
+  useEffect(() => {
+    const html = document.documentElement;
+    if (isDarkMode) {
+      html.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      html.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [isDarkMode]);
+
+  const toggleDarkMode = () => {
+    setIsDarkMode(prev => !prev);
+  };
 
   const handleStartTyping = (char: string) => {
     setInitialChatValue(char);
@@ -63,7 +97,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleUpdateChat = useCallback((userMessage: string, intent: string, data: any, aiMessage: string, isDraft: boolean) => {
+  const handleUpdateChat = useCallback(async (userMessage: string, intent: string, data: any, aiMessage: string, isDraft: boolean) => {
     setState(prev => {
       const updatedSessions: ChatSession[] = prev.chatSessions.map(s => {
         if (s.id === prev.currentChatId) {
@@ -78,7 +112,10 @@ const App: React.FC = () => {
             draft: isDraft ? data : undefined,
             confirmed: false
           });
-          return { ...s, messages: newMessages, lastUpdate: Date.now() };
+          
+          const updatedSession = { ...s, messages: newMessages, lastUpdate: Date.now() };
+          dbService.saveChatSession(updatedSession).catch(console.error);
+          return updatedSession;
         }
         return s;
       });
@@ -90,11 +127,13 @@ const App: React.FC = () => {
     setState(prev => {
       const updatedSessions = prev.chatSessions.map(s => {
         if (s.id === prev.currentChatId) {
-          return {
+          const updatedSession = {
             ...s,
             messages: [...s.messages, { role: 'user' as const, content: msg, timestamp: Date.now() }],
             lastUpdate: Date.now()
           };
+          dbService.saveChatSession(updatedSession).catch(console.error);
+          return updatedSession;
         }
         return s;
       });
@@ -102,58 +141,93 @@ const App: React.FC = () => {
     });
   };
 
-  const handleConfirmDraft = (messageIndex: number) => {
+  const handleConfirmDraft = async (messageIndex: number) => {
     const session = state.chatSessions.find(s => s.id === state.currentChatId);
     if (!session) return;
     const message = session.messages[messageIndex];
     if (!message || !message.draft) return;
+    
     const data = message.draft;
-    const isSale = message.content.toLowerCase().includes('sat') || message.draft.intent === 'SALE_RECORD';
+    const isSale = data.intent === 'SALE_RECORD' || (!data.intent && message.content.toLowerCase().includes('sat'));
+
+    const draftProductName = (data.productName || "").toLowerCase();
+    let product = state.products.find(p => p.name.toLowerCase().includes(draftProductName));
+    
+    if (!product) {
+       product = state.products.length > 0 ? state.products[0] : { id: 'unknown', name: 'Genel Ürün', stockCount: 0, unitPrice: 0, purchasePrice: 0, vatRate: 0.20, sku: 'UNK', category: 'Genel' };
+    }
+
+    const draftCustomerName = (data.customerName || "").toLowerCase();
+    let customer = state.customers.find(c => c.name.toLowerCase().includes(draftCustomerName));
+    
+    if (!customer) {
+        customer = state.customers.length > 0 ? state.customers[0] : { id: 'unknown', name: 'Genel Müşteri', balance: 0 };
+    }
+
+    const quantity = Number(data.quantity) || 1;
+    const unitPrice = data.price ? Number(data.price) : (isSale ? product.unitPrice : product.purchasePrice);
+    const totalAmount = unitPrice * quantity * (1 + product.vatRate);
+    
+    const newTx: Transaction = {
+      id: Date.now().toString(),
+      customerId: customer.id,
+      productId: product.id,
+      productName: product.name,
+      customerName: customer.name,
+      quantity: quantity,
+      totalAmount: totalAmount,
+      vatAmount: totalAmount * product.vatRate,
+      date: new Date().toISOString(),
+      type: isSale ? 'SALE' : 'PURCHASE',
+      paymentStatus: 'PENDING'
+    };
+
+    const updatedCustomer: Customer = {
+        ...customer,
+        balance: customer.balance + (isSale ? totalAmount : -totalAmount)
+    };
+
+    const updatedProduct: Product = {
+        ...product,
+        stockCount: product.stockCount + (isSale ? -quantity : quantity)
+    };
+
+    await Promise.all([
+        dbService.saveTransaction(newTx),
+        dbService.saveCustomer(updatedCustomer),
+        dbService.saveProduct(updatedProduct)
+    ]);
 
     setState(prev => {
-      const newState = { ...prev };
-      const product = prev.products.find(p => p.name.toLowerCase().includes(data.productName.toLowerCase())) || prev.products[0];
-      const customer = prev.customers.find(c => c.name.toLowerCase().includes(data.customerName.toLowerCase())) || prev.customers[0];
-      const quantity = data.quantity || 1;
-      const unitPrice = data.price || (isSale ? product.unitPrice : product.purchasePrice);
-      const totalAmount = unitPrice * quantity * (1 + product.vatRate);
-      
-      const newTx: Transaction = {
-        id: Date.now().toString(),
-        customerId: customer.id,
-        productId: product.id,
-        productName: product.name,
-        customerName: customer.name,
-        quantity: quantity,
-        totalAmount: totalAmount,
-        vatAmount: totalAmount * product.vatRate,
-        date: new Date().toISOString(),
-        type: isSale ? 'SALE' : 'PURCHASE',
-        paymentStatus: 'PENDING'
-      };
-      newState.transactions = [newTx, ...prev.transactions];
-      newState.customers = prev.customers.map(c => c.id === customer.id ? { ...c, balance: c.balance + (isSale ? totalAmount : -totalAmount) } : c);
-      newState.products = prev.products.map(p => p.id === product.id ? { ...p, stockCount: p.stockCount + (isSale ? -quantity : quantity) } : p);
-      newState.chatSessions = prev.chatSessions.map(s => {
-        if (s.id === prev.currentChatId) {
-          const newMessages = [...s.messages];
-          newMessages[messageIndex] = { ...newMessages[messageIndex], confirmed: true };
-          return { ...s, messages: newMessages };
-        }
-        return s;
-      });
-      return newState;
+        const newChatSessions = prev.chatSessions.map(s => {
+            if (s.id === prev.currentChatId) {
+                const newMessages = [...s.messages];
+                newMessages[messageIndex] = { ...newMessages[messageIndex], confirmed: true };
+                const updatedSession = { ...s, messages: newMessages };
+                dbService.saveChatSession(updatedSession);
+                return updatedSession;
+            }
+            return s;
+        });
+
+        return {
+            ...prev,
+            transactions: [newTx, ...prev.transactions],
+            customers: prev.customers.map(c => c.id === updatedCustomer.id ? updatedCustomer : c),
+            products: prev.products.map(p => p.id === updatedProduct.id ? updatedProduct : p),
+            chatSessions: newChatSessions
+        };
     });
   };
 
-  const handleSaveCustomer = () => {
+  const handleSaveCustomer = async () => {
     if (!editCustomer.name) return alert("Cari adı zorunludur.");
-    setState(prev => {
-      const exists = prev.customers.find(c => c.id === editCustomer.id);
-      if (exists) {
-        return { ...prev, customers: prev.customers.map(c => c.id === editCustomer.id ? { ...c, ...editCustomer } as Customer : c) };
-      } else {
-        const newCustomer: Customer = { 
+    let updatedCustomer: Customer;
+    if (editCustomer.id) {
+        const existing = state.customers.find(c => c.id === editCustomer.id);
+        updatedCustomer = { ...existing, ...editCustomer } as Customer;
+    } else {
+        updatedCustomer = { 
           id: Date.now().toString(), 
           name: editCustomer.name || '', 
           balance: editCustomer.balance || 0, 
@@ -162,20 +236,27 @@ const App: React.FC = () => {
           phone: editCustomer.phone, 
           address: editCustomer.address 
         };
-        return { ...prev, customers: [newCustomer, ...prev.customers] };
+    }
+    await dbService.saveCustomer(updatedCustomer);
+    setState(prev => {
+      const exists = prev.customers.find(c => c.id === updatedCustomer.id);
+      if (exists) {
+        return { ...prev, customers: prev.customers.map(c => c.id === updatedCustomer.id ? updatedCustomer : c) };
+      } else {
+        return { ...prev, customers: [updatedCustomer, ...prev.customers] };
       }
     });
     setIsDrawerOpen(false);
   };
 
-  const handleSaveProduct = () => {
+  const handleSaveProduct = async () => {
     if (!editProduct.name) return alert("Ürün adı zorunludur.");
-    setState(prev => {
-      const exists = prev.products.find(p => p.id === editProduct.id);
-      if (exists) {
-        return { ...prev, products: prev.products.map(p => p.id === editProduct.id ? { ...p, ...editProduct } as Product : p) };
-      } else {
-        const newProduct: Product = { 
+    let updatedProduct: Product;
+    if (editProduct.id) {
+        const existing = state.products.find(p => p.id === editProduct.id);
+        updatedProduct = { ...existing, ...editProduct } as Product;
+    } else {
+        updatedProduct = { 
           id: Date.now().toString(), 
           name: editProduct.name || '', 
           sku: editProduct.sku || `SKU-${Date.now()}`, 
@@ -185,29 +266,32 @@ const App: React.FC = () => {
           vatRate: 0.20, 
           category: editProduct.category || 'Genel' 
         };
-        return { ...prev, products: [newProduct, ...prev.products] };
+    }
+    await dbService.saveProduct(updatedProduct);
+    setState(prev => {
+      const exists = prev.products.find(p => p.id === updatedProduct.id);
+      if (exists) {
+        return { ...prev, products: prev.products.map(p => p.id === updatedProduct.id ? updatedProduct : p) };
+      } else {
+        return { ...prev, products: [updatedProduct, ...prev.customers] };
       }
     });
     setIsDrawerOpen(false);
   };
 
-  const handleSaveProfile = () => {
+  const handleSaveProfile = async () => {
     if (!editProfile.name) return alert("İşletme adı zorunludur.");
-    setState(prev => ({
-      ...prev,
-      profile: { ...prev.profile, ...editProfile } as BusinessProfile
-    }));
+    const updatedProfile = { ...state.profile, ...editProfile } as BusinessProfile;
+    await dbService.saveProfile(updatedProfile);
+    setState(prev => ({ ...prev, profile: updatedProfile }));
     setIsDrawerOpen(false);
   };
 
-  const handleManualPayment = () => {
+  const handleManualPayment = async () => {
     if (!targetCustomerId || manualAmount <= 0) return;
     const customer = state.customers.find(c => c.id === targetCustomerId);
     if (!customer) return;
-
-    setState(prev => ({
-      ...prev,
-      transactions: [{
+    const newTx: Transaction = {
         id: `pay-${Date.now()}`,
         customerId: customer.id,
         customerName: customer.name,
@@ -216,21 +300,23 @@ const App: React.FC = () => {
         type: 'PAYMENT',
         paymentStatus: 'PAID',
         note: 'Manuel Tahsilat'
-      }, ...prev.transactions],
-      customers: prev.customers.map(c => c.id === targetCustomerId ? { ...c, balance: c.balance - manualAmount } : c)
+    };
+    const updatedCustomer = { ...customer, balance: customer.balance - manualAmount };
+    await Promise.all([dbService.saveTransaction(newTx), dbService.saveCustomer(updatedCustomer)]);
+    setState(prev => ({
+      ...prev,
+      transactions: [newTx, ...prev.transactions],
+      customers: prev.customers.map(c => c.id === targetCustomerId ? updatedCustomer : c)
     }));
     setIsDrawerOpen(false);
     setManualAmount(0);
   };
 
-  const handleManualStockEntry = () => {
+  const handleManualStockEntry = async () => {
     if (!targetProductId || manualAmount <= 0) return;
     const product = state.products.find(p => p.id === targetProductId);
     if (!product) return;
-
-    setState(prev => ({
-      ...prev,
-      transactions: [{
+    const newTx: Transaction = {
         id: `stk-${Date.now()}`,
         customerId: '1',
         customerName: 'Stok Girişi',
@@ -242,11 +328,60 @@ const App: React.FC = () => {
         type: 'PURCHASE',
         paymentStatus: 'PAID',
         note: 'Manuel Stok Alımı'
-      }, ...prev.transactions],
-      products: prev.products.map(p => p.id === targetProductId ? { ...p, stockCount: p.stockCount + manualAmount } : p)
+    };
+    const updatedProduct = { ...product, stockCount: product.stockCount + manualAmount };
+    await Promise.all([dbService.saveTransaction(newTx), dbService.saveProduct(updatedProduct)]);
+    setState(prev => ({
+      ...prev,
+      transactions: [newTx, ...prev.transactions],
+      products: prev.products.map(p => p.id === targetProductId ? updatedProduct : p)
     }));
     setIsDrawerOpen(false);
     setManualAmount(0);
+  };
+
+  const handleCompleteManualSale = async () => {
+    if (!targetCustomerId || !targetProductId || manualQuantity <= 0 || manualAmount <= 0) return alert("Eksik bilgileri doldurun.");
+    const customer = state.customers.find(c => c.id === targetCustomerId);
+    const product = state.products.find(p => p.id === targetProductId);
+    if (!customer || !product) return;
+
+    const totalAmount = manualAmount * manualQuantity * (1 + product.vatRate);
+    const newTx: Transaction = {
+        id: `msale-${Date.now()}`,
+        customerId: customer.id,
+        customerName: customer.name,
+        productId: product.id,
+        productName: product.name,
+        quantity: manualQuantity,
+        totalAmount: totalAmount,
+        vatAmount: totalAmount * product.vatRate,
+        date: new Date().toISOString(),
+        type: 'SALE',
+        paymentStatus: 'PENDING',
+        note: 'Manuel Satış'
+    };
+
+    const updatedCustomer = { ...customer, balance: customer.balance + totalAmount };
+    const updatedProduct = { ...product, stockCount: product.stockCount - manualQuantity };
+
+    await Promise.all([
+        dbService.saveTransaction(newTx),
+        dbService.saveCustomer(updatedCustomer),
+        dbService.saveProduct(updatedProduct)
+    ]);
+
+    setState(prev => ({
+      ...prev,
+      transactions: [newTx, ...prev.transactions],
+      customers: prev.customers.map(c => c.id === targetCustomerId ? updatedCustomer : c),
+      products: prev.products.map(p => p.id === targetProductId ? updatedProduct : p)
+    }));
+    setIsDrawerOpen(false);
+    setManualAmount(0);
+    setManualQuantity(1);
+    setTargetCustomerId(null);
+    setTargetProductId(null);
   };
 
   const handlePrint = (type: 'label' | 'statement', customer: Partial<Customer>) => {
@@ -263,54 +398,53 @@ const App: React.FC = () => {
     printWindow.document.close();
   };
 
+  const onManualSaleTrigger = () => {
+    setDrawerMode('manual_sale');
+    setIsDrawerOpen(true);
+  };
+
   const renderContent = () => {
     const commonClass = "page-transition max-w-6xl mx-auto pb-24 md:pb-0";
-    
     if (viewMode === 'detail') {
       if (selectedCustomer) {
         const customerTxs = state.transactions.filter(t => t.customerId === selectedCustomer.id);
         return (
           <div className={`${commonClass}`}>
             <div className="flex justify-between items-center mb-12">
-               <button onClick={() => setViewMode('list')} className="flex items-center text-slate-400 font-bold uppercase tracking-widest text-xs hover:text-slate-900 transition-colors">
+               <button onClick={() => setViewMode('list')} className="flex items-center text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest text-xs hover:text-slate-900 dark:hover:text-white transition-colors">
                  <span className="mr-2 text-xl">←</span> Listeye Dön
                </button>
                <div className="flex space-x-2 md:space-x-3">
-                 <button onClick={() => handlePrint('statement', selectedCustomer)} className="hidden md:block px-6 py-3 bg-white border border-slate-200 rounded-2xl font-bold text-xs uppercase hover:bg-slate-50">Ekstre Yazdır</button>
-                 <button onClick={() => handlePrint('label', selectedCustomer)} className="hidden md:block px-6 py-3 bg-white border border-slate-200 rounded-2xl font-bold text-xs uppercase hover:bg-slate-50">Adres Yazdır</button>
+                 <button onClick={() => { setTargetCustomerId(selectedCustomer.id); setDrawerMode('manual_sale'); setIsDrawerOpen(true); }} className="px-4 md:px-6 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold text-xs uppercase hover:bg-slate-50 dark:hover:bg-slate-700 dark:text-white">Satış Yap</button>
+                 <button onClick={() => handlePrint('statement', selectedCustomer)} className="hidden md:block px-6 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold text-xs uppercase hover:bg-slate-50 dark:hover:bg-slate-700 dark:text-white">Ekstre</button>
                  <button onClick={() => { setTargetCustomerId(selectedCustomer.id); setDrawerMode('tahsilat'); setIsDrawerOpen(true); }} className="px-4 md:px-6 py-3 bg-emerald-600 text-white rounded-2xl font-bold text-xs uppercase hover:bg-emerald-700">Tahsilat</button>
-                 <button onClick={() => { setEditCustomer(selectedCustomer); setDrawerMode('customer'); setIsDrawerOpen(true); }} className="px-4 md:px-6 py-3 bg-slate-900 text-white rounded-2xl font-bold text-xs uppercase hover:bg-blue-900 transition-colors">Düzenle</button>
+                 <button onClick={() => { setEditCustomer(selectedCustomer); setDrawerMode('customer'); setIsDrawerOpen(true); }} className="px-4 md:px-6 py-3 bg-slate-900 dark:bg-slate-700 text-white rounded-2xl font-bold text-xs uppercase hover:bg-blue-900 dark:hover:bg-blue-800 transition-colors">Düzenle</button>
                </div>
             </div>
-            
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-12">
                <div className="lg:col-span-1">
-                  <div className="bg-white p-6 md:p-10 rounded-[32px] md:rounded-[40px] shadow-sm border border-slate-100">
+                  <div className="bg-white dark:bg-slate-900 p-6 md:p-10 rounded-[32px] md:rounded-[40px] shadow-sm border border-slate-100 dark:border-slate-800">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Bakiye</p>
-                    <p className={`text-4xl md:text-6xl font-black tracking-tighter ${selectedCustomer.balance > 0 ? 'text-emerald-600' : selectedCustomer.balance < 0 ? 'text-red-500' : 'text-slate-900'}`}>
+                    <p className={`text-4xl md:text-6xl font-black tracking-tighter ${selectedCustomer.balance > 0 ? 'text-emerald-600' : selectedCustomer.balance < 0 ? 'text-red-500' : 'text-slate-900 dark:text-white'}`}>
                       ₺{selectedCustomer.balance.toLocaleString('tr-TR')}
                     </p>
-                    <div className="mt-8 pt-8 border-t border-slate-50 space-y-4">
-                       <p className="font-bold text-slate-900">{selectedCustomer.name}</p>
-                       <p className="text-sm font-medium text-slate-500">{selectedCustomer.address || 'Adres Kaydı Yok'}</p>
-                       <div className="flex space-x-2 md:hidden pt-4">
-                          <button onClick={() => handlePrint('statement', selectedCustomer)} className="flex-1 py-3 border border-slate-200 rounded-xl text-xs font-bold uppercase">Ekstre</button>
-                          <button onClick={() => handlePrint('label', selectedCustomer)} className="flex-1 py-3 border border-slate-200 rounded-xl text-xs font-bold uppercase">Etiket</button>
-                       </div>
+                    <div className="mt-8 pt-8 border-t border-slate-50 dark:border-slate-800 space-y-4">
+                       <p className="font-bold text-slate-900 dark:text-white">{selectedCustomer.name}</p>
+                       <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{selectedCustomer.address || 'Adres Kaydı Yok'}</p>
                     </div>
                   </div>
                </div>
                <div className="lg:col-span-2">
-                  <div className="bg-white rounded-[32px] md:rounded-[40px] shadow-sm border border-slate-100 overflow-hidden">
-                    <div className="p-8 border-b border-slate-50 bg-slate-50/50"><h3 className="font-black text-lg text-slate-900">Hareketler</h3></div>
-                    <div className="divide-y divide-slate-50 max-h-[600px] overflow-y-auto custom-scrollbar">
+                  <div className="bg-white dark:bg-slate-900 rounded-[32px] md:rounded-[40px] shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+                    <div className="p-8 border-b border-slate-50 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50"><h3 className="font-black text-lg text-slate-900 dark:text-white">Hareketler</h3></div>
+                    <div className="divide-y divide-slate-50 dark:divide-slate-800 max-h-[600px] overflow-y-auto custom-scrollbar">
                        {customerTxs.map(t => (
                          <div key={t.id} className="p-6 md:p-8 flex items-center justify-between">
                             <div className="flex items-center space-x-4 md:space-x-6">
-                               <div className={`w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center font-black text-sm md:text-base ${t.type === 'SALE' ? 'bg-emerald-50 text-emerald-600' : t.type === 'PAYMENT' ? 'bg-blue-50 text-blue-600' : 'bg-red-50 text-red-600'}`}>{t.type[0]}</div>
-                               <div><p className="font-black text-slate-900 text-sm md:text-base">{t.productName || t.note}</p><p className="text-xs text-slate-400">{new Date(t.date).toLocaleDateString('tr-TR')}</p></div>
+                               <div className={`w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center font-black text-sm md:text-base ${t.type === 'SALE' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20' : t.type === 'PAYMENT' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20' : 'bg-red-50 text-red-600 dark:bg-red-900/20'}`}>{t.type[0]}</div>
+                               <div><p className="font-black text-slate-900 dark:text-white text-sm md:text-base">{t.productName || t.note}</p><p className="text-xs text-slate-400">{new Date(t.date).toLocaleDateString('tr-TR')}</p></div>
                             </div>
-                            <div className="text-right"><p className="font-black text-lg md:text-xl">₺{t.totalAmount}</p></div>
+                            <div className="text-right"><p className="font-black text-lg md:text-xl dark:text-white">₺{t.totalAmount}</p></div>
                          </div>
                        ))}
                     </div>
@@ -325,35 +459,36 @@ const App: React.FC = () => {
         return (
           <div className={`${commonClass}`}>
             <div className="flex justify-between items-center mb-12">
-               <button onClick={() => setViewMode('list')} className="flex items-center text-slate-400 font-bold uppercase tracking-widest text-xs hover:text-slate-900 transition-colors">
+               <button onClick={() => setViewMode('list')} className="flex items-center text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest text-xs hover:text-slate-900 dark:hover:text-white transition-colors">
                  <span className="mr-2 text-xl">←</span> Listeye Dön
                </button>
                <div className="flex space-x-3">
-                 <button onClick={() => { setTargetProductId(selectedProduct.id); setDrawerMode('stok_alimi'); setIsDrawerOpen(true); }} className="px-4 md:px-6 py-3 bg-white border border-slate-200 rounded-2xl font-bold text-xs uppercase hover:bg-slate-50">Stok Al</button>
-                 <button onClick={() => { setEditProduct(selectedProduct); setDrawerMode('product'); setIsDrawerOpen(true); }} className="px-4 md:px-6 py-3 bg-slate-900 text-white rounded-2xl font-bold text-xs uppercase hover:bg-blue-900 transition-colors">Düzenle</button>
+                 <button onClick={() => { setTargetProductId(selectedProduct.id); setDrawerMode('manual_sale'); setIsDrawerOpen(true); }} className="px-4 md:px-6 py-3 bg-emerald-600 text-white rounded-2xl font-bold text-xs uppercase hover:bg-emerald-700">Satış Yap</button>
+                 <button onClick={() => { setTargetProductId(selectedProduct.id); setDrawerMode('stok_alimi'); setIsDrawerOpen(true); }} className="px-4 md:px-6 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold text-xs uppercase hover:bg-slate-50 dark:hover:bg-slate-700 dark:text-white">Stok Al</button>
+                 <button onClick={() => { setEditProduct(selectedProduct); setDrawerMode('product'); setIsDrawerOpen(true); }} className="px-4 md:px-6 py-3 bg-slate-900 dark:bg-slate-700 text-white rounded-2xl font-bold text-xs uppercase hover:bg-blue-900 dark:hover:bg-blue-800 transition-colors">Düzenle</button>
                </div>
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-12">
                <div className="lg:col-span-1">
-                  <div className="bg-white p-6 md:p-10 rounded-[32px] md:rounded-[40px] shadow-sm border border-slate-100">
-                    <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight leading-tight">{selectedProduct.name}</h2>
+                  <div className="bg-white dark:bg-slate-900 p-6 md:p-10 rounded-[32px] md:rounded-[40px] shadow-sm border border-slate-100 dark:border-slate-800">
+                    <h2 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">{selectedProduct.name}</h2>
                     <div className="grid grid-cols-2 gap-4 md:gap-6 mt-8">
-                       <div className="bg-slate-50 p-4 md:p-6 rounded-3xl"><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Stok</p><p className={`text-2xl md:text-3xl font-black ${selectedProduct.stockCount < 20 ? 'text-red-500' : 'text-slate-900'}`}>{selectedProduct.stockCount}</p></div>
-                       <div className="bg-slate-50 p-4 md:p-6 rounded-3xl"><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Fiyat</p><p className="text-2xl md:text-3xl font-black text-[#1A237E]">₺{selectedProduct.unitPrice}</p></div>
+                       <div className="bg-slate-50 dark:bg-slate-800 p-4 md:p-6 rounded-3xl"><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Stok</p><p className={`text-2xl md:text-3xl font-black ${selectedProduct.stockCount < 20 ? 'text-red-500' : 'text-slate-900 dark:text-white'}`}>{selectedProduct.stockCount}</p></div>
+                       <div className="bg-slate-50 dark:bg-slate-800 p-4 md:p-6 rounded-3xl"><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Fiyat</p><p className="text-2xl md:text-3xl font-black text-[#1A237E] dark:text-blue-400">₺{selectedProduct.unitPrice}</p></div>
                     </div>
                   </div>
                </div>
                <div className="lg:col-span-2">
-                  <div className="bg-white rounded-[32px] md:rounded-[40px] shadow-sm border border-slate-100 overflow-hidden">
-                    <div className="p-8 border-b border-slate-50 bg-slate-50/50"><h3 className="font-black text-lg text-slate-900">Ürün Geçmişi</h3></div>
-                    <div className="divide-y divide-slate-50">
+                  <div className="bg-white dark:bg-slate-900 rounded-[32px] md:rounded-[40px] shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+                    <div className="p-8 border-b border-slate-50 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50"><h3 className="font-black text-lg text-slate-900 dark:text-white">Ürün Geçmişi</h3></div>
+                    <div className="divide-y divide-slate-50 dark:divide-slate-800">
                        {productTxs.map(t => (
                          <div key={t.id} className="p-6 md:p-8 flex items-center justify-between">
                             <div className="flex items-center space-x-4 md:space-x-6">
-                              <div className={`w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center font-black text-sm md:text-base ${t.type === 'SALE' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>{t.type[0]}</div>
-                              <div><p className="font-black text-slate-900 text-sm md:text-base">{t.customerName}</p><p className="text-xs text-slate-400">{new Date(t.date).toLocaleDateString('tr-TR')}</p></div>
+                              <div className={`w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center font-black text-sm md:text-base ${t.type === 'SALE' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20' : 'bg-red-50 text-red-600 dark:bg-red-900/20'}`}>{t.type[0]}</div>
+                              <div><p className="font-black text-slate-900 dark:text-white text-sm md:text-base">{t.customerName}</p><p className="text-xs text-slate-400">{new Date(t.date).toLocaleDateString('tr-TR')}</p></div>
                             </div>
-                            <div className="text-right"><p className="font-black text-lg md:text-xl">{t.type === 'SALE' ? '-' : '+'}{t.quantity} Adet</p></div>
+                            <div className="text-right"><p className="font-black text-lg md:text-xl dark:text-white">{t.type === 'SALE' ? '-' : '+'}{t.quantity} Adet</p></div>
                          </div>
                        ))}
                     </div>
@@ -366,28 +501,15 @@ const App: React.FC = () => {
     }
 
     switch (activeTab) {
-      case 'dashboard': return <div key="dashboard" className={commonClass}><Dashboard state={state} onAskAI={handleDashboardSubmit} onStartTyping={handleStartTyping} isProcessing={isProcessingAI} /></div>;
-      
-      // FIXED: Adjusted height calculation for Desktop Chat to fit perfectly without window scroll
-      // Uses 10rem to offset the 9rem padding (pt-36) + some bottom spacing, preventing main window scroll
+      case 'dashboard': return <div key="dashboard" className={commonClass}><Dashboard state={state} onAskAI={handleDashboardSubmit} onStartTyping={handleStartTyping} isProcessing={isProcessingAI} onManualSale={onManualSaleTrigger} /></div>;
       case 'chat': return (
         <div key="chat" className="page-transition h-[calc(100vh-6rem)] md:h-[calc(100vh-10rem)] -mt-4 md:mt-0 pb-0">
            <ChatInterface state={state} initialValue={initialChatValue} onUpdateState={handleUpdateChat} onAddUserMessage={handleAddUserMessage} onNewChat={() => {}} onSelectChat={(id) => setState(p=>({...p, currentChatId:id}))} onConfirmDraft={handleConfirmDraft} />
         </div>
       );
-      
-      case 'customers': return <div key="customers" className={commonClass}><CustomerList customers={state.customers} onSelect={(id) => { const c = state.customers.find(c=>c.id===id); if(c){ setSelectedCustomer(c); setViewMode('detail'); } }} onAddNew={() => { setEditCustomer({name:''}); setDrawerMode('customer'); setIsDrawerOpen(true); }} /></div>;
+      case 'customers': return <div key="customers" className={commonClass}><CustomerList customers={state.customers} onSelect={(id) => { const c = state.customers.find(c=>c.id===id); if(c){ setSelectedCustomer(c); setViewMode('detail'); } }} onAddNew={() => { setEditCustomer({name:''}); setDrawerMode('customer'); setIsDrawerOpen(true); }} onManualSale={onManualSaleTrigger} /></div>;
       case 'profile': return <div key="profile" className={commonClass}><Profile profile={state.profile} onEdit={() => { setEditProfile(state.profile); setDrawerMode('profile'); setIsDrawerOpen(true); }} /></div>;
-      case 'products': 
-        return (
-          <div key="products" className={commonClass}>
-            <ProductList 
-                products={state.products} 
-                onSelect={(p) => { setSelectedProduct(p); setViewMode('detail'); }} 
-                onAddNew={() => { setEditProduct({name:'', stockCount:0}); setDrawerMode('product'); setIsDrawerOpen(true); }}
-            />
-          </div>
-        );
+      case 'products': return <div key="products" className={commonClass}><ProductList products={state.products} onSelect={(p) => { setSelectedProduct(p); setViewMode('detail'); }} onAddNew={() => { setEditProduct({name:'', stockCount:0}); setDrawerMode('product'); setIsDrawerOpen(true); }} onManualSale={onManualSaleTrigger} /></div>;
       default: return null;
     }
   };
@@ -396,155 +518,130 @@ const App: React.FC = () => {
     setViewMode('list');
     setSelectedCustomer(null);
     setSelectedProduct(null);
-    
-    // Logic for Floating Button visibility
-    if (activeTab !== 'chat') {
-        setShowFloatingButton(true);
-    } else {
-        setShowFloatingButton(false);
-        setIsChatPopupOpen(false);
-    }
+    setShowFloatingButton(activeTab !== 'chat');
+    if (activeTab === 'chat') setIsChatPopupOpen(false);
   }, [activeTab]);
 
   return (
-    <div className="min-h-screen bg-[#FBFBFD] text-slate-900 selection:bg-blue-100 selection:text-blue-900 relative">
-      <Header activeTab={activeTab} setActiveTab={setActiveTab} businessName={state.profile.name} />
-      
-      {/* 
-        The top padding here pushes the content down. 
-        For Chat, we want fixed behavior, for others we want scroll.
-        The shrinking header works via window scroll on dashboard/lists.
-      */}
+    <div className={`min-h-screen bg-[#FBFBFD] dark:bg-slate-950 text-slate-900 dark:text-white selection:bg-blue-100 selection:text-blue-900 relative transition-colors duration-500`}>
+      <Header activeTab={activeTab} setActiveTab={setActiveTab} businessName={state.profile.name} isDarkMode={isDarkMode} onToggleDarkMode={toggleDarkMode} />
       <main className="pt-8 md:pt-36 px-4 md:px-8 pb-32">{renderContent()}</main>
 
-      {/* Floating Mini Chat BUTTON (Desktop only or when needed) */}
       {showFloatingButton && !isChatPopupOpen && (
           <div className="fixed bottom-24 md:bottom-8 right-4 md:right-8 z-[999] floating-chat-enter">
-            <div className="relative group">
-              <div 
-                onClick={() => setIsChatPopupOpen(true)}
-                className="w-14 h-14 md:w-16 md:h-16 bg-[#1A237E] rounded-full shadow-2xl flex items-center justify-center cursor-pointer hover:scale-110 transition-transform active:scale-95 shadow-blue-900/40 relative z-20"
-              >
+            <div onClick={() => setIsChatPopupOpen(true)} className="w-14 h-14 md:w-16 md:h-16 bg-[#1A237E] dark:bg-blue-700 rounded-full shadow-2xl flex items-center justify-center cursor-pointer hover:scale-110 transition-transform active:scale-95 shadow-blue-900/40 relative z-20">
                 <span className="text-white text-xl md:text-2xl">🧠</span>
-                <div className="absolute -top-1 -right-1 w-4 h-4 md:w-5 md:h-5 bg-emerald-500 border-2 border-white rounded-full animate-pulse"></div>
-              </div>
             </div>
           </div>
       )}
 
-      {/* POPUP CHAT WINDOW */}
       {isChatPopupOpen && (
-          <div className="fixed bottom-24 right-4 md:right-8 w-[calc(100%-2rem)] md:w-96 h-[500px] md:h-[550px] bg-white rounded-[32px] shadow-2xl border border-slate-100 z-[999] animate-in slide-in-from-bottom-10 fade-in duration-300 flex flex-col overflow-hidden">
-             <ChatInterface 
-                state={state} 
-                initialValue={initialChatValue} 
-                onUpdateState={handleUpdateChat} 
-                onAddUserMessage={handleAddUserMessage} 
-                onNewChat={() => {}} 
-                onSelectChat={(id) => setState(p=>({...p, currentChatId:id}))} 
-                onConfirmDraft={handleConfirmDraft}
-                isPopup={true}
-             />
-             <button 
-                onClick={() => setIsChatPopupOpen(false)}
-                className="absolute top-3 right-3 w-8 h-8 bg-slate-100 hover:bg-slate-200 rounded-full flex items-center justify-center text-slate-500 transition-colors z-[1000]"
-             >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-             </button>
+          <div className="fixed bottom-24 right-4 md:right-8 w-[calc(100%-2rem)] md:w-96 h-[500px] md:h-[550px] bg-white dark:bg-slate-900 rounded-[32px] shadow-2xl border border-slate-100 dark:border-slate-800 z-[999] flex flex-col overflow-hidden animate-in slide-in-from-bottom-10">
+             <ChatInterface state={state} initialValue={initialChatValue} onUpdateState={handleUpdateChat} onAddUserMessage={handleAddUserMessage} onNewChat={() => {}} onSelectChat={(id) => setState(p=>({...p, currentChatId:id}))} onConfirmDraft={handleConfirmDraft} isPopup={true} />
+             <button onClick={() => setIsChatPopupOpen(false)} className="absolute top-3 right-3 w-8 h-8 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full flex items-center justify-center text-slate-500 dark:text-slate-400 z-[1000]"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
           </div>
       )}
 
-      {/* Mobile Navigation Bar */}
       <MobileNavBar activeTab={activeTab} setActiveTab={setActiveTab} />
 
-      <SideDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} title={drawerMode === 'customer' ? 'Müşteri Kaydı' : drawerMode === 'product' ? 'Ürün Kaydı' : drawerMode === 'tahsilat' ? 'Tahsilat Girişi' : drawerMode === 'profile' ? 'İşletme Profili' : 'Stok Alımı'}>
-         {/* Drawer Content */}
+      <SideDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} title={drawerMode === 'customer' ? 'Müşteri Kaydı' : drawerMode === 'product' ? 'Ürün Kaydı' : drawerMode === 'tahsilat' ? 'Tahsilat Girişi' : drawerMode === 'profile' ? 'İşletme Profili' : drawerMode === 'manual_sale' ? 'Hızlı Satış Yap' : 'Stok Alımı'}>
          {drawerMode === 'customer' ? (
            <div className="space-y-10">
               <div className="space-y-6">
-                <input className="w-full text-2xl font-bold border-b-2 border-slate-100 focus:border-blue-600 py-3 outline-none" value={editCustomer.name || ''} onChange={e => setEditCustomer({...editCustomer, name: e.target.value})} placeholder="Ünvan" />
+                <input className="w-full text-2xl font-bold border-b-2 border-slate-100 dark:border-slate-800 bg-transparent dark:text-white focus:border-blue-600 py-3 outline-none" value={editCustomer.name || ''} onChange={e => setEditCustomer({...editCustomer, name: e.target.value})} placeholder="Ünvan" />
                 <div className="grid grid-cols-2 gap-4">
-                  <input className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold" value={editCustomer.taxNumber || ''} onChange={e => setEditCustomer({...editCustomer, taxNumber: e.target.value})} placeholder="Vergi No" />
-                  <input className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold" value={editCustomer.phone || ''} onChange={e => setEditCustomer({...editCustomer, phone: e.target.value})} placeholder="Telefon" />
+                  <input className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 font-bold dark:text-white" value={editCustomer.taxNumber || ''} onChange={e => setEditCustomer({...editCustomer, taxNumber: e.target.value})} placeholder="Vergi No" />
+                  <input className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 font-bold dark:text-white" value={editCustomer.phone || ''} onChange={e => setEditCustomer({...editCustomer, phone: e.target.value})} placeholder="Telefon" />
                 </div>
-                <textarea className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-medium" rows={3} placeholder="Adres" value={editCustomer.address || ''} onChange={e => setEditCustomer({...editCustomer, address: e.target.value})} />
+                <textarea className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 font-medium dark:text-white" rows={3} placeholder="Adres" value={editCustomer.address || ''} onChange={e => setEditCustomer({...editCustomer, address: e.target.value})} />
               </div>
-              <div className="flex space-x-4">
-                <button onClick={() => { if(editCustomer.id) {setTargetCustomerId(editCustomer.id!); setDrawerMode('tahsilat');} else {alert('Önce kaydı tamamlayın');} }} className="flex-1 py-4 border-2 border-slate-900 text-slate-900 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-slate-50">Ödeme Al</button>
-                <button onClick={handleSaveCustomer} className="flex-1 bg-slate-900 text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-[#1A237E] shadow-xl">Kaydet</button>
-              </div>
+              <button onClick={handleSaveCustomer} className="w-full bg-slate-900 dark:bg-blue-700 text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-[#1A237E] shadow-xl">Kaydet</button>
            </div>
          ) : drawerMode === 'product' ? (
            <div className="space-y-10">
               <div className="space-y-6">
-               <input className="w-full text-2xl font-bold border-b-2 border-slate-100 focus:border-[#1A237E] py-3 outline-none" value={editProduct.name || ''} onChange={e => setEditProduct({...editProduct, name: e.target.value})} placeholder="Ürün Adı" />
+               <input className="w-full text-2xl font-bold border-b-2 border-slate-100 dark:border-slate-800 bg-transparent dark:text-white focus:border-[#1A237E] py-3 outline-none" value={editProduct.name || ''} onChange={e => setEditProduct({...editProduct, name: e.target.value})} placeholder="Ürün Adı" />
                <div className="grid grid-cols-2 gap-4">
-                 <input type="number" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold" value={editProduct.unitPrice || ''} onChange={e => setEditProduct({...editProduct, unitPrice: Number(e.target.value)})} placeholder="Satış" />
-                 <input type="number" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold" value={editProduct.stockCount || ''} onChange={e => setEditProduct({...editProduct, stockCount: Number(e.target.value)})} placeholder="Stok" />
+                 <input type="number" className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 font-bold dark:text-white" value={editProduct.unitPrice || ''} onChange={e => setEditProduct({...editProduct, unitPrice: Number(e.target.value)})} placeholder="Satış" />
+                 <input type="number" className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 font-bold dark:text-white" value={editProduct.stockCount || ''} onChange={e => setEditProduct({...editProduct, stockCount: Number(e.target.value)})} placeholder="Stok" />
                </div>
-               <input className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold" value={editProduct.category || ''} onChange={e => setEditProduct({...editProduct, category: e.target.value})} placeholder="Kategori" />
+               <input className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 font-bold dark:text-white" value={editProduct.category || ''} onChange={e => setEditProduct({...editProduct, category: e.target.value})} placeholder="Kategori" />
              </div>
-             <button onClick={handleSaveProduct} className="w-full bg-slate-900 text-white py-5 rounded-[24px] font-black uppercase tracking-widest text-sm shadow-xl hover:bg-[#1A237E]">{editProduct.id ? 'Güncelle' : 'Ekle'}</button>
+             <button onClick={handleSaveProduct} className="w-full bg-slate-900 dark:bg-blue-700 text-white py-5 rounded-[24px] font-black uppercase tracking-widest text-sm shadow-xl hover:bg-[#1A237E]">{editProduct.id ? 'Güncelle' : 'Ekle'}</button>
            </div>
+         ) : drawerMode === 'manual_sale' ? (
+            <div className="space-y-10">
+                <div className="space-y-6">
+                    <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Cari Seçin</label>
+                        <select className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 font-bold outline-none dark:text-white" value={targetCustomerId || ''} onChange={e => setTargetCustomerId(e.target.value)}>
+                            <option value="">Cari Seçin...</option>
+                            {state.customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Ürün Seçin</label>
+                        <select className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 font-bold outline-none dark:text-white" value={targetProductId || ''} onChange={e => {
+                            setTargetProductId(e.target.value);
+                            const p = state.products.find(x => x.id === e.target.value);
+                            if(p) setManualAmount(p.unitPrice);
+                        }}>
+                            <option value="">Ürün Seçin...</option>
+                            {state.products.map(p => <option key={p.id} value={p.id}>{p.name} (Stok: {p.stockCount})</option>)}
+                        </select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Adet</label>
+                            <input type="number" className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 font-bold dark:text-white" value={manualQuantity} onChange={e => setManualQuantity(Number(e.target.value))} />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Birim Fiyat (₺)</label>
+                            <input type="number" className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 font-bold dark:text-white" value={manualAmount} onChange={e => setManualAmount(Number(e.target.value))} />
+                        </div>
+                    </div>
+                </div>
+                <button onClick={handleCompleteManualSale} className="w-full bg-emerald-600 text-white py-5 rounded-[24px] font-black uppercase tracking-widest text-sm shadow-xl hover:bg-emerald-700">Satışı Onayla ve Kaydet</button>
+            </div>
          ) : drawerMode === 'tahsilat' ? (
            <div className="space-y-10">
-              <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Ödeme Alınan Cari</p><p className="text-2xl font-black text-slate-900">{state.customers.find(c=>c.id===targetCustomerId)?.name}</p></div>
+              <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Ödeme Alınan Cari</p><p className="text-2xl font-black text-slate-900 dark:text-white">{state.customers.find(c=>c.id===targetCustomerId)?.name}</p></div>
               <div className="space-y-6">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alınan Tutar (₺)</label>
-                <input type="number" autoFocus className="w-full text-6xl font-black border-none bg-transparent outline-none tracking-tighter" value={manualAmount} onChange={e => setManualAmount(Number(e.target.value))} />
+                <input type="number" autoFocus className="w-full text-6xl font-black border-none bg-transparent outline-none tracking-tighter dark:text-white" value={manualAmount} onChange={setManualAmount} />
               </div>
               <button onClick={handleManualPayment} className="w-full bg-emerald-600 text-white py-5 rounded-[24px] font-black uppercase tracking-widest text-sm shadow-xl hover:bg-emerald-700">Tahsilatı Tamamla</button>
            </div>
          ) : drawerMode === 'stok_alimi' ? (
            <div className="space-y-10">
-              <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Stok Alınan Ürün</p><p className="text-2xl font-black text-slate-900">{state.products.find(p=>p.id===targetProductId)?.name}</p></div>
+              <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Stok Alınan Ürün</p><p className="text-2xl font-black text-slate-900 dark:text-white">{state.products.find(p=>p.id===targetProductId)?.name}</p></div>
               <div className="space-y-6">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alınan Miktar (Adet)</label>
-                <input type="number" autoFocus className="w-full text-6xl font-black border-none bg-transparent outline-none tracking-tighter" value={manualAmount} onChange={e => setManualAmount(Number(e.target.value))} />
+                <input type="number" autoFocus className="w-full text-6xl font-black border-none bg-transparent outline-none tracking-tighter dark:text-white" value={manualAmount} onChange={setManualAmount} />
               </div>
-              <button onClick={handleManualStockEntry} className="w-full bg-slate-900 text-white py-5 rounded-[24px] font-black uppercase tracking-widest text-sm shadow-xl hover:bg-blue-900">Stok Girişini Yap</button>
+              <button onClick={handleManualStockEntry} className="w-full bg-slate-900 dark:bg-blue-700 text-white py-5 rounded-[24px] font-black uppercase tracking-widest text-sm shadow-xl hover:bg-blue-900">Stok Girişini Yap</button>
            </div>
          ) : drawerMode === 'profile' ? (
             <div className="space-y-10">
                 <div className="space-y-6">
                     <div>
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">İşletme Adı</label>
-                        <input className="w-full text-xl font-bold border-b-2 border-slate-100 focus:border-[#1A237E] py-2 outline-none" value={editProfile.name || ''} onChange={e => setEditProfile({...editProfile, name: e.target.value})} placeholder="İşletme Adı" />
+                        <input className="w-full text-xl font-bold border-b-2 border-slate-100 dark:border-slate-800 bg-transparent dark:text-white focus:border-[#1A237E] py-2 outline-none" value={editProfile.name || ''} onChange={e => setEditProfile({...editProfile, name: e.target.value})} />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Sahibi</label>
-                            <input className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold" value={editProfile.ownerName || ''} onChange={e => setEditProfile({...editProfile, ownerName: e.target.value})} placeholder="Ad Soyad" />
-                        </div>
-                        <div>
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Sektör</label>
-                            <input className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold" value={editProfile.sector || ''} onChange={e => setEditProfile({...editProfile, sector: e.target.value})} placeholder="Sektör" />
-                        </div>
+                        <input className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 font-bold dark:text-white" value={editProfile.ownerName || ''} onChange={e => setEditProfile({...editProfile, ownerName: e.target.value})} placeholder="Sahibi" />
+                        <input className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 font-bold dark:text-white" value={editProfile.sector || ''} onChange={e => setEditProfile({...editProfile, sector: e.target.value})} placeholder="Sektör" />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Vergi Dairesi</label>
-                            <input className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold" value={editProfile.taxOffice || ''} onChange={e => setEditProfile({...editProfile, taxOffice: e.target.value})} placeholder="V.D." />
-                        </div>
-                        <div>
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Vergi No</label>
-                            <input className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold" value={editProfile.taxNumber || ''} onChange={e => setEditProfile({...editProfile, taxNumber: e.target.value})} placeholder="VKN" />
-                        </div>
+                        <input className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 font-bold dark:text-white" value={editProfile.taxOffice || ''} onChange={e => setEditProfile({...editProfile, taxOffice: e.target.value})} placeholder="V.D." />
+                        <input className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 font-bold dark:text-white" value={editProfile.taxNumber || ''} onChange={e => setEditProfile({...editProfile, taxNumber: e.target.value})} placeholder="VKN" />
                     </div>
-                    <div>
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Telefon</label>
-                        <input className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold" value={editProfile.phone || ''} onChange={e => setEditProfile({...editProfile, phone: e.target.value})} placeholder="05XX..." />
-                    </div>
-                    <div>
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Adres</label>
-                        <textarea className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-medium" rows={3} placeholder="Açık Adres" value={editProfile.address || ''} onChange={e => setEditProfile({...editProfile, address: e.target.value})} />
-                    </div>
+                    <input className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 font-bold dark:text-white" value={editProfile.phone || ''} onChange={e => setEditProfile({...editProfile, phone: e.target.value})} placeholder="Telefon" />
+                    <textarea className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 font-medium dark:text-white" rows={3} placeholder="Adres" value={editProfile.address || ''} onChange={e => setEditProfile({...editProfile, address: e.target.value})} />
                 </div>
-                <button onClick={handleSaveProfile} className="w-full bg-slate-900 text-white py-5 rounded-[24px] font-black uppercase tracking-widest text-sm shadow-xl hover:bg-[#1A237E]">Profil Bilgilerini Güncelle</button>
+                <button onClick={handleSaveProfile} className="w-full bg-slate-900 dark:bg-blue-700 text-white py-5 rounded-[24px] font-black uppercase tracking-widest text-sm shadow-xl">Güncelle</button>
             </div>
-         ) : (
-           <div className="p-10 text-center text-slate-400 font-bold uppercase tracking-widest">Form Detayları...</div>
-         )}
+         ) : null}
       </SideDrawer>
     </div>
   );

@@ -11,21 +11,21 @@ const Profile: React.FC<ProfileProps> = ({ profile, onEdit }) => {
   return (
     <div className="max-w-3xl mx-auto page-transition space-y-8">
       <div className="flex items-center space-x-6 mb-8">
-        <div className="w-24 h-24 bg-[#1A237E] rounded-[30px] flex items-center justify-center text-white text-4xl font-black shadow-2xl shadow-blue-900/20">
+        <div className="w-24 h-24 bg-[#1A237E] dark:bg-blue-600 rounded-[30px] flex items-center justify-center text-white text-4xl font-black shadow-2xl shadow-blue-900/20">
           {profile.name.charAt(0)}
         </div>
         <div>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight">{profile.name}</h2>
-          <p className="text-slate-500 font-medium mt-1">{profile.sector} • {profile.ownerName}</p>
+          <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">{profile.name}</h2>
+          <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">{profile.sector} • {profile.ownerName}</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm p-10 space-y-8">
-        <div className="flex items-center justify-between border-b border-slate-50 pb-6">
-            <h3 className="text-xl font-black text-slate-900">İşletme Bilgileri</h3>
+      <div className="bg-white dark:bg-slate-900 rounded-[40px] border border-slate-100 dark:border-slate-800 shadow-sm p-10 space-y-8">
+        <div className="flex items-center justify-between border-b border-slate-50 dark:border-slate-800 pb-6">
+            <h3 className="text-xl font-black text-slate-900 dark:text-white">İşletme Bilgileri</h3>
             <button 
               onClick={onEdit}
-              className="px-6 py-2 bg-slate-50 text-slate-900 rounded-full text-xs font-bold uppercase tracking-widest hover:bg-slate-100 transition-colors"
+              className="px-6 py-2 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-full text-xs font-bold uppercase tracking-widest hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
             >
               Düzenle
             </button>
@@ -33,29 +33,29 @@ const Profile: React.FC<ProfileProps> = ({ profile, onEdit }) => {
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-1">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sahibi</p>
-                <p className="text-lg font-bold text-slate-900">{profile.ownerName}</p>
+                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Sahibi</p>
+                <p className="text-lg font-bold text-slate-900 dark:text-white">{profile.ownerName}</p>
             </div>
             <div className="space-y-1">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sektör</p>
-                <p className="text-lg font-bold text-slate-900">{profile.sector}</p>
+                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Sektör</p>
+                <p className="text-lg font-bold text-slate-900 dark:text-white">{profile.sector}</p>
             </div>
             <div className="space-y-1">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Vergi Dairesi / No</p>
-                <p className="text-lg font-bold text-slate-900">{profile.taxOffice || '-'} / {profile.taxNumber || '-'}</p>
+                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Vergi Dairesi / No</p>
+                <p className="text-lg font-bold text-slate-900 dark:text-white">{profile.taxOffice || '-'} / {profile.taxNumber || '-'}</p>
             </div>
             <div className="space-y-1">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Telefon</p>
-                <p className="text-lg font-bold text-slate-900">{profile.phone}</p>
+                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Telefon</p>
+                <p className="text-lg font-bold text-slate-900 dark:text-white">{profile.phone}</p>
             </div>
             <div className="col-span-1 md:col-span-2 space-y-1">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Adres</p>
-                <p className="text-lg font-bold text-slate-900">{profile.address}</p>
+                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Adres</p>
+                <p className="text-lg font-bold text-slate-900 dark:text-white">{profile.address}</p>
             </div>
         </div>
       </div>
 
-      <div className="bg-gradient-to-br from-slate-900 to-[#1A237E] rounded-[32px] p-8 text-white relative overflow-hidden">
+      <div className="bg-gradient-to-br from-slate-900 to-[#1A237E] dark:from-blue-900 dark:to-slate-900 rounded-[32px] p-8 text-white relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full -mr-16 -mt-16 blur-3xl"></div>
         <div className="relative z-10 flex justify-between items-center">
              <div>
