@@ -21,7 +21,6 @@ const App: React.FC = () => {
   const [isProcessingAI, setIsProcessingAI] = useState(false);
   const [initialChatValue, setInitialChatValue] = useState('');
   
-  // Tema state'ini başlat ve localStorage ile senkronize et
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('theme');
     if (saved) return saved === 'dark';
@@ -57,7 +56,6 @@ const App: React.FC = () => {
     initData();
   }, []);
 
-  // Tema değiştiğinde HTML sınıfını ve localStorage'ı güncelle
   useEffect(() => {
     const html = document.documentElement;
     if (isDarkMode) {
@@ -69,8 +67,21 @@ const App: React.FC = () => {
     }
   }, [isDarkMode]);
 
-  const toggleDarkMode = () => {
-    setIsDarkMode(prev => !prev);
+  const toggleDarkMode = () => setIsDarkMode(prev => !prev);
+
+  // Navigasyon Yardımcıları
+  const showCustomerDetail = (customer: Customer) => {
+    setSelectedProduct(null);
+    setSelectedCustomer(customer);
+    setViewMode('detail');
+    setActiveTab('customers');
+  };
+
+  const showProductDetail = (product: Product) => {
+    setSelectedCustomer(null);
+    setSelectedProduct(product);
+    setViewMode('detail');
+    setActiveTab('products');
   };
 
   const handleStartTyping = (char: string) => {
@@ -273,7 +284,7 @@ const App: React.FC = () => {
       if (exists) {
         return { ...prev, products: prev.products.map(p => p.id === updatedProduct.id ? updatedProduct : p) };
       } else {
-        return { ...prev, products: [updatedProduct, ...prev.customers] };
+        return { ...prev, products: [updatedProduct, ...prev.products] };
       }
     });
     setIsDrawerOpen(false);
@@ -442,9 +453,22 @@ const App: React.FC = () => {
                          <div key={t.id} className="p-6 md:p-8 flex items-center justify-between">
                             <div className="flex items-center space-x-4 md:space-x-6">
                                <div className={`w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center font-black text-sm md:text-base ${t.type === 'SALE' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20' : t.type === 'PAYMENT' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20' : 'bg-red-50 text-red-600 dark:bg-red-900/20'}`}>{t.type[0]}</div>
-                               <div><p className="font-black text-slate-900 dark:text-white text-sm md:text-base">{t.productName || t.note}</p><p className="text-xs text-slate-400">{new Date(t.date).toLocaleDateString('tr-TR')}</p></div>
+                               <div>
+                                  <p 
+                                    onClick={() => {
+                                        if(t.productId) {
+                                            const prod = state.products.find(p => p.id === t.productId);
+                                            if(prod) showProductDetail(prod);
+                                        }
+                                    }}
+                                    className={`font-black text-slate-900 dark:text-white text-sm md:text-base ${t.productId ? 'cursor-pointer hover:text-blue-600 dark:hover:text-blue-400' : ''}`}
+                                  >
+                                    {t.productName || t.note} {t.quantity ? `(${t.quantity} Adet)` : ''}
+                                  </p>
+                                  <p className="text-xs text-slate-400">{new Date(t.date).toLocaleDateString('tr-TR')}</p>
+                               </div>
                             </div>
-                            <div className="text-right"><p className="font-black text-lg md:text-xl dark:text-white">₺{t.totalAmount}</p></div>
+                            <div className="text-right"><p className="font-black text-lg md:text-xl dark:text-white">₺{t.totalAmount.toLocaleString('tr-TR')}</p></div>
                          </div>
                        ))}
                     </div>
@@ -486,9 +510,23 @@ const App: React.FC = () => {
                          <div key={t.id} className="p-6 md:p-8 flex items-center justify-between">
                             <div className="flex items-center space-x-4 md:space-x-6">
                               <div className={`w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center font-black text-sm md:text-base ${t.type === 'SALE' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20' : 'bg-red-50 text-red-600 dark:bg-red-900/20'}`}>{t.type[0]}</div>
-                              <div><p className="font-black text-slate-900 dark:text-white text-sm md:text-base">{t.customerName}</p><p className="text-xs text-slate-400">{new Date(t.date).toLocaleDateString('tr-TR')}</p></div>
+                              <div>
+                                <p 
+                                    onClick={() => {
+                                        const cust = state.customers.find(c => c.id === t.customerId);
+                                        if(cust) showCustomerDetail(cust);
+                                    }}
+                                    className="font-black text-slate-900 dark:text-white text-sm md:text-base cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
+                                >
+                                    {t.customerName}
+                                </p>
+                                <p className="text-xs text-slate-400">{new Date(t.date).toLocaleDateString('tr-TR')}</p>
+                              </div>
                             </div>
-                            <div className="text-right"><p className="font-black text-lg md:text-xl dark:text-white">{t.type === 'SALE' ? '-' : '+'}{t.quantity} Adet</p></div>
+                            <div className="text-right">
+                                <p className="font-black text-lg md:text-xl dark:text-white">{t.type === 'SALE' ? '-' : '+'}{t.quantity} Adet</p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase">Tutar: ₺{t.totalAmount.toLocaleString('tr-TR')}</p>
+                            </div>
                          </div>
                        ))}
                     </div>
@@ -507,9 +545,9 @@ const App: React.FC = () => {
            <ChatInterface state={state} initialValue={initialChatValue} onUpdateState={handleUpdateChat} onAddUserMessage={handleAddUserMessage} onNewChat={() => {}} onSelectChat={(id) => setState(p=>({...p, currentChatId:id}))} onConfirmDraft={handleConfirmDraft} />
         </div>
       );
-      case 'customers': return <div key="customers" className={commonClass}><CustomerList customers={state.customers} onSelect={(id) => { const c = state.customers.find(c=>c.id===id); if(c){ setSelectedCustomer(c); setViewMode('detail'); } }} onAddNew={() => { setEditCustomer({name:''}); setDrawerMode('customer'); setIsDrawerOpen(true); }} onManualSale={onManualSaleTrigger} /></div>;
+      case 'customers': return <div key="customers" className={commonClass}><CustomerList customers={state.customers} onSelect={(id) => { const c = state.customers.find(c=>c.id===id); if(c){ showCustomerDetail(c); } }} onAddNew={() => { setEditCustomer({name:''}); setDrawerMode('customer'); setIsDrawerOpen(true); }} onManualSale={onManualSaleTrigger} /></div>;
       case 'profile': return <div key="profile" className={commonClass}><Profile profile={state.profile} onEdit={() => { setEditProfile(state.profile); setDrawerMode('profile'); setIsDrawerOpen(true); }} /></div>;
-      case 'products': return <div key="products" className={commonClass}><ProductList products={state.products} onSelect={(p) => { setSelectedProduct(p); setViewMode('detail'); }} onAddNew={() => { setEditProduct({name:'', stockCount:0}); setDrawerMode('product'); setIsDrawerOpen(true); }} onManualSale={onManualSaleTrigger} /></div>;
+      case 'products': return <div key="products" className={commonClass}><ProductList products={state.products} onSelect={(p) => { showProductDetail(p); }} onAddNew={() => { setEditProduct({name:'', stockCount:0}); setDrawerMode('product'); setIsDrawerOpen(true); }} onManualSale={onManualSaleTrigger} /></div>;
       default: return null;
     }
   };
@@ -608,7 +646,7 @@ const App: React.FC = () => {
               <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Ödeme Alınan Cari</p><p className="text-2xl font-black text-slate-900 dark:text-white">{state.customers.find(c=>c.id===targetCustomerId)?.name}</p></div>
               <div className="space-y-6">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alınan Tutar (₺)</label>
-                <input type="number" autoFocus className="w-full text-6xl font-black border-none bg-transparent outline-none tracking-tighter dark:text-white" value={manualAmount} onChange={setManualAmount} />
+                <input type="number" autoFocus className="w-full text-6xl font-black border-none bg-transparent outline-none tracking-tighter dark:text-white" value={manualAmount} onChange={e => setManualAmount(Number(e.target.value))} />
               </div>
               <button onClick={handleManualPayment} className="w-full bg-emerald-600 text-white py-5 rounded-[24px] font-black uppercase tracking-widest text-sm shadow-xl hover:bg-emerald-700">Tahsilatı Tamamla</button>
            </div>
@@ -617,7 +655,7 @@ const App: React.FC = () => {
               <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Stok Alınan Ürün</p><p className="text-2xl font-black text-slate-900 dark:text-white">{state.products.find(p=>p.id===targetProductId)?.name}</p></div>
               <div className="space-y-6">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alınan Miktar (Adet)</label>
-                <input type="number" autoFocus className="w-full text-6xl font-black border-none bg-transparent outline-none tracking-tighter dark:text-white" value={manualAmount} onChange={setManualAmount} />
+                <input type="number" autoFocus className="w-full text-6xl font-black border-none bg-transparent outline-none tracking-tighter dark:text-white" value={manualAmount} onChange={e => setManualAmount(Number(e.target.value))} />
               </div>
               <button onClick={handleManualStockEntry} className="w-full bg-slate-900 dark:bg-blue-700 text-white py-5 rounded-[24px] font-black uppercase tracking-widest text-sm shadow-xl hover:bg-blue-900">Stok Girişini Yap</button>
            </div>
