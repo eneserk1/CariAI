@@ -44,8 +44,8 @@ const ProductList: React.FC<ProductListProps> = ({ products, onSelect, onAddNew,
               <input type="text" placeholder="Ürün ara..." className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm outline-none focus:ring-2 focus:ring-blue-500/20 dark:text-white" value={search} onChange={e=>setSearch(e.target.value)} />
             </div>
             <div className="flex w-full md:w-auto space-x-2">
-                <button onClick={onManualSale} className="flex-1 md:w-auto bg-emerald-600 text-white px-6 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-emerald-200 dark:shadow-emerald-900/20 hover:bg-emerald-700 transition-all">Satış Yap</button>
-                <button onClick={onAddNew} className="flex-1 md:w-auto bg-slate-900 dark:bg-blue-600 text-white px-6 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-blue-900 dark:hover:bg-blue-500 transition-all">+ Yeni Ürün</button>
+                <button onClick={onManualSale} className="flex-1 md:w-auto bg-slate-900 dark:bg-blue-600 text-white px-6 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-blue-900 dark:hover:bg-blue-500 transition-all">İşlem Yap</button>
+                <button onClick={onAddNew} className="flex-1 md:w-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white px-6 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-all">+ Yeni Ürün</button>
             </div>
          </div>
       </div>
