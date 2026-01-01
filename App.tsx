@@ -9,8 +9,10 @@ import CustomerList from './components/CustomerList';
 import ProductList from './components/ProductList';
 import ChatInterface from './components/ChatInterface';
 import SideDrawer from './components/SideDrawer';
-import Profile from './components/Profile'; 
-import AnalysisView from './components/AnalysisView'; // Yeni bileşen
+import Profile from './components/Profile';
+import AnalysisView from './components/AnalysisView';
+import CustomerDetail from './components/CustomerDetail';
+import ProductDetail from './components/ProductDetail';
 import { geminiService } from './services/geminiService';
 import { dbService } from './services/db';
 import * as XLSX from 'xlsx';
@@ -38,7 +40,7 @@ const App: React.FC = () => {
   const [formAddress, setFormAddress] = useState<string>('');
   const [formCategory, setFormCategory] = useState<string>('');
   const [formSelectedProductId, setFormSelectedProductId] = useState<string>('');
-  const [manualTxType, setManualTxType] = useState<'SALE' | 'PURCHASE'>('SALE');
+  const [manualTxType, setManualTxType] = useState<'SALE' | 'PURCHASE' | 'PAYMENT'>('SALE');
 
   useEffect(() => {
     const initData = async () => {
@@ -221,6 +223,180 @@ const App: React.FC = () => {
   const renderContent = () => {
     const commonClass = "page-transition max-w-6xl mx-auto pb-32 md:pb-12";
 
+    if (viewMode === 'detail' && activeTab === 'customers' && selectedCustomer) {
+      return (
+        <CustomerDetail
+          customer={selectedCustomer}
+          transactions={state.transactions}
+          onBack={() => { setViewMode('list'); setSelectedCustomer(null); }}
+          onEdit={(customer) => { setSelectedCustomer(customer); }}
+          onUpdate={async (customer) => {
+            try {
+              await dbService.saveCustomer(customer);
+              setState(prev => ({
+                ...prev,
+                customers: prev.customers.map(c => c.id === customer.id ? customer : c)
+              }));
+              setSelectedCustomer(customer);
+            } catch (err) {
+              console.error('Cari güncelleme hatası:', err);
+            }
+          }}
+          onDelete={async (id) => {
+            try {
+              const customers = state.customers.filter(c => c.id !== id);
+              const transactions = state.transactions.filter(t => t.customerId !== id);
+              await dbService.deleteCustomer(id);
+              setState(prev => ({ ...prev, customers, transactions }));
+              setViewMode('list');
+              setSelectedCustomer(null);
+            } catch (err) {
+              console.error('Cari silme hatası:', err);
+            }
+          }}
+          onNewTransaction={() => handleQuickAction('SALE')}
+          onUpdateTransaction={async (transaction) => {
+            try {
+              await dbService.saveTransaction(transaction);
+              const updatedTransactions = state.transactions.map(t => t.id === transaction.id ? transaction : t);
+              const customer = state.customers.find(c => c.id === transaction.customerId);
+              if (customer) {
+                const updatedCustomer = { ...customer, balance: updatedTransactions.filter(t => t.customerId === customer.id).reduce((acc, t) => acc + (t.type === 'SALE' ? t.totalAmount : t.type === 'PAYMENT' ? -t.totalAmount : t.type === 'PURCHASE' ? -t.totalAmount : 0), 0) };
+                await dbService.saveCustomer(updatedCustomer);
+                setState(prev => ({
+                  ...prev,
+                  transactions: updatedTransactions,
+                  customers: prev.customers.map(c => c.id === updatedCustomer.id ? updatedCustomer : c)
+                }));
+                setSelectedCustomer(updatedCustomer);
+              }
+            } catch (err) {
+              console.error('İşlem güncelleme hatası:', err);
+            }
+          }}
+          onDeleteTransaction={async (id) => {
+            try {
+              const transaction = state.transactions.find(t => t.id === id);
+              if (transaction) {
+                const updatedTransactions = state.transactions.filter(t => t.id !== id);
+                const customer = state.customers.find(c => c.id === transaction.customerId);
+                if (customer) {
+                  const updatedCustomer = { ...customer, balance: updatedTransactions.filter(t => t.customerId === customer.id).reduce((acc, t) => acc + (t.type === 'SALE' ? t.totalAmount : t.type === 'PAYMENT' ? -t.totalAmount : t.type === 'PURCHASE' ? -t.totalAmount : 0), 0) };
+                  await dbService.saveCustomer(updatedCustomer);
+                  await dbService.deleteTransaction(id);
+                  setState(prev => ({
+                    ...prev,
+                    transactions: updatedTransactions,
+                    customers: prev.customers.map(c => c.id === updatedCustomer.id ? updatedCustomer : c)
+                  }));
+                  setSelectedCustomer(updatedCustomer);
+                }
+              }
+            } catch (err) {
+              console.error('İşlem silme hatası:', err);
+            }
+          }}
+        />
+      );
+    }
+
+    if (viewMode === 'detail' && activeTab === 'products' && selectedProduct) {
+      return (
+        <ProductDetail
+          product={selectedProduct}
+          transactions={state.transactions}
+          customers={state.customers}
+          onBack={() => { setViewMode('list'); setSelectedProduct(null); }}
+          onEdit={(product) => { setSelectedProduct(product); }}
+          onUpdate={async (product) => {
+            try {
+              await dbService.saveProduct(product);
+              setState(prev => ({
+                ...prev,
+                products: prev.products.map(p => p.id === product.id ? product : p)
+              }));
+              setSelectedProduct(product);
+            } catch (err) {
+              console.error('Ürün güncelleme hatası:', err);
+            }
+          }}
+          onDelete={async (id) => {
+            try {
+              const products = state.products.filter(p => p.id !== id);
+              const transactions = state.transactions.filter(t => t.productId !== id);
+              await dbService.deleteProduct(id);
+              setState(prev => ({ ...prev, products, transactions }));
+              setViewMode('list');
+              setSelectedProduct(null);
+            } catch (err) {
+              console.error('Ürün silme hatası:', err);
+            }
+          }}
+          onNewTransaction={() => {
+            setSelectedCustomer(null);
+            handleQuickAction('SALE');
+          }}
+          onStockAdjust={async (productId, newStock) => {
+            try {
+              const product = state.products.find(p => p.id === productId);
+              if (product) {
+                const updatedProduct = { ...product, stockCount: newStock };
+                await dbService.saveProduct(updatedProduct);
+                setState(prev => ({
+                  ...prev,
+                  products: prev.products.map(p => p.id === productId ? updatedProduct : p)
+                }));
+                setSelectedProduct(updatedProduct);
+              }
+            } catch (err) {
+              console.error('Stok düzeltme hatası:', err);
+            }
+          }}
+          onUpdateTransaction={async (transaction) => {
+            try {
+              await dbService.saveTransaction(transaction);
+              const updatedTransactions = state.transactions.map(t => t.id === transaction.id ? transaction : t);
+              const product = state.products.find(p => p.id === transaction.productId);
+              if (product) {
+                const updatedProduct = { ...product, stockCount: updatedTransactions.filter(t => t.productId === product.id).reduce((acc, t) => acc + (t.type === 'SALE' ? -(t.quantity || 0) : (t.quantity || 0)), product.stockCount) };
+                await dbService.saveProduct(updatedProduct);
+                setState(prev => ({
+                  ...prev,
+                  transactions: updatedTransactions,
+                  products: prev.products.map(p => p.id === updatedProduct.id ? updatedProduct : p)
+                }));
+                setSelectedProduct(updatedProduct);
+              }
+            } catch (err) {
+              console.error('İşlem güncelleme hatası:', err);
+            }
+          }}
+          onDeleteTransaction={async (id) => {
+            try {
+              const transaction = state.transactions.find(t => t.id === id);
+              if (transaction) {
+                const updatedTransactions = state.transactions.filter(t => t.id !== id);
+                const product = state.products.find(p => p.id === transaction.productId);
+                if (product) {
+                  const updatedProduct = { ...product, stockCount: updatedTransactions.filter(t => t.productId === product.id).reduce((acc, t) => acc + (t.type === 'SALE' ? -(t.quantity || 0) : (t.quantity || 0)), product.stockCount) };
+                  await dbService.saveProduct(updatedProduct);
+                  await dbService.deleteTransaction(id);
+                  setState(prev => ({
+                    ...prev,
+                    transactions: updatedTransactions,
+                    products: prev.products.map(p => p.id === updatedProduct.id ? updatedProduct : p)
+                  }));
+                  setSelectedProduct(updatedProduct);
+                }
+              }
+            } catch (err) {
+              console.error('İşlem silme hatası:', err);
+            }
+          }}
+        />
+      );
+    }
+
     if (activeTab === 'dashboard' && viewMode === 'transactions') {
         const filteredTxs = state.transactions.filter(t => txFilter === 'ALL' || t.type === txFilter);
         return (
@@ -232,14 +408,14 @@ const App: React.FC = () => {
                 </div>
                 <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl">
                    {(['ALL', 'SALE', 'PURCHASE', 'PAYMENT'] as const).map(f => (
-                     <button key={f} onClick={() => setTxFilter(f)} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${txFilter === f ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>{f === 'ALL' ? 'Tümü' : f === 'SALE' ? 'Satış' : f === 'PURCHASE' ? 'Alış' : 'Tahsilat'}</button>
+                      <button key={f} onClick={() => setTxFilter(f)} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${txFilter === f ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>{f === 'ALL' ? 'Tümü' : f === 'SALE' ? 'Satış' : f === 'PURCHASE' ? 'Alış' : 'Tahsilat'}</button>
                    ))}
                 </div>
              </div>
              <div className="bg-white dark:bg-slate-900 rounded-[40px] shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden divide-y divide-slate-50 dark:divide-slate-800">
                 {filteredTxs.map(t => (
-                  <div 
-                    key={t.id} 
+                  <div
+                    key={t.id}
                     className="p-8 flex justify-between items-center hover:bg-slate-50/50 transition-colors cursor-pointer group"
                     onClick={() => {
                       const c = state.customers.find(x => x.id === t.customerId);
@@ -282,48 +458,87 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#FBFBFD] dark:bg-slate-950 transition-colors">
-      <Header activeTab={activeTab} setActiveTab={setActiveTab} businessName={state.profile.name} isDarkMode={isDarkMode} onToggleDarkMode={toggleDarkMode} />
+      <Header activeTab={activeTab} setActiveTab={setActiveTab} businessName={state.profile.name} />
       <main className="pt-10 md:pt-36 px-4 md:px-8 pb-32">{renderContent()}</main>
       <MobileNavBar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <button
+        onClick={toggleDarkMode}
+        className="fixed bottom-24 right-6 z-50 w-14 h-14 bg-slate-900/5 dark:bg-white/10 backdrop-blur-md border border-slate-200 dark:border-white/20 rounded-2xl flex items-center justify-center hover:scale-110 transition-all shadow-lg"
+      >
+        {isDarkMode ? '☀️' : '🌙'}
+      </button>
       
-      <SideDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} title="Hızlı Kayıt">
+      <SideDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} title="İşlem Yap">
         <div className="space-y-8">
-            {drawerMode === 'manual_tx' && (
-                <div className="space-y-6">
+            {selectedCustomer && (
+                <>
                     <div>
-                      <label className="text-[10px] font-black text-slate-400 block mb-3 uppercase tracking-widest">Cari Seç</label>
-                      <select value={selectedCustomer?.id || ''} onChange={e => setSelectedCustomer(state.customers.find(c => c.id === e.target.value) || null)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 font-bold border-none">
-                        <option value="">Cari Seçiniz...</option>
-                        {state.customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                      </select>
+                      <label className="text-[10px] font-black text-slate-400 block mb-3 uppercase tracking-widest">İşlem Tipi</label>
+                      <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl">
+                        {(['SALE', 'PURCHASE', 'PAYMENT'] as const).map(type => (
+                          <button
+                            key={type}
+                            onClick={() => setManualTxType(type)}
+                            className={`flex-1 py-3 rounded-xl text-xs font-black uppercase transition-all ${
+                              manualTxType === type
+                                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                                : 'text-slate-500'
+                            }`}
+                          >
+                            {type === 'SALE' ? 'Satış' : type === 'PURCHASE' ? 'Alış' : 'Tahsilat'}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                    <div><label className="text-[10px] font-black text-slate-400 block mb-3 uppercase tracking-widest">Tahsil Edilen (₺)</label><input type="number" value={formAmount} onChange={e=>setFormAmount(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-3xl p-6 text-3xl font-black outline-none border-none" /></div>
-                    <button onClick={() => handleManualTxSubmit('PAYMENT')} className="w-full bg-emerald-600 text-white py-5 rounded-[24px] font-black uppercase tracking-widest shadow-xl">Tahsilatı Kaydet</button>
-                </div>
-            )}
-            {drawerMode === 'manual_sale_purchase' && (
-                <div className="space-y-6">
+
                     <div>
-                      <label className="text-[10px] font-black text-slate-400 block mb-3 uppercase tracking-widest">Cari Seç</label>
-                      <select value={selectedCustomer?.id || ''} onChange={e => setSelectedCustomer(state.customers.find(c => c.id === e.target.value) || null)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 font-bold border-none">
-                        <option value="">Cari Seçiniz...</option>
-                        {state.customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                      </select>
+                      <label className="text-[10px] font-black text-slate-400 block mb-3 uppercase tracking-widest">Cari</label>
+                      <div className="bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 font-bold text-slate-900 dark:text-white">
+                        {selectedCustomer.name}
+                      </div>
                     </div>
-                    <div><label className="text-[10px] font-black text-slate-400 block mb-3 uppercase tracking-widest">Ürün/Hizmet Adı</label><input type="text" value={formName} onChange={e=>setFormName(e.target.value)} placeholder="Ürün adı..." className="w-full bg-slate-50 dark:bg-slate-800 rounded-3xl p-5 font-bold border-none" /></div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div><label className="text-[10px] font-black text-slate-400 block mb-3 uppercase tracking-widest">Miktar</label><input type="number" value={formQty} onChange={e=>setFormQty(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 border-none" /></div>
-                        <div><label className="text-[10px] font-black text-slate-400 block mb-3 uppercase tracking-widest">Birim Fiyat</label><input type="number" value={formPrice} onChange={e=>setFormPrice(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 border-none" /></div>
-                    </div>
-                    <button onClick={() => handleManualTxSubmit(manualTxType)} className={`w-full py-5 rounded-[24px] font-black uppercase tracking-widest text-white shadow-xl ${manualTxType === 'SALE' ? 'bg-blue-600' : 'bg-red-500'}`}>{manualTxType === 'SALE' ? 'Satışı Bitir' : 'Alışı Bitir'}</button>
-                </div>
-            )}
-            {drawerMode === 'customer_edit' && (
-                <div className="space-y-6">
-                    <div><label className="text-[10px] font-black text-slate-400 block mb-3 uppercase tracking-widest">Cari Adı</label><input type="text" value={formName} onChange={e=>setFormName(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-5 font-bold border-none" /></div>
-                    <div><label className="text-[10px] font-black text-slate-400 block mb-3 uppercase tracking-widest">Telefon</label><input type="text" value={formPhone} onChange={e=>setFormPhone(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-5 font-bold border-none" /></div>
-                    <button onClick={() => handleManualTxSubmit('CUSTOMER_ADD')} className="w-full bg-slate-900 text-white py-5 rounded-[24px] font-black uppercase tracking-widest transition-all">Yeni Cariyi Kaydet</button>
-                </div>
+
+                    {manualTxType !== 'PAYMENT' && (
+                        <>
+                            <div>
+                              <label className="text-[10px] font-black text-slate-400 block mb-3 uppercase tracking-widest">Ürün</label>
+                              <select
+                                value={formSelectedProductId}
+                                onChange={e => {
+                                  setFormSelectedProductId(e.target.value);
+                                  const product = state.products.find(p => p.id === e.target.value);
+                                  if (product) {
+                                    setFormName(product.name);
+                                    setFormPrice(product.unitPrice.toString());
+                                  }
+                                }}
+                                className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 font-bold border-none dark:text-white"
+                              >
+                                <option value="">Ürün Seçiniz...</option>
+                                {state.products.map(p => <option key={p.id} value={p.id}>{p.name} (₺{p.unitPrice.toLocaleString('tr-TR')})</option>)}
+                              </select>
+                            </div>
+
+                            <div><label className="text-[10px] font-black text-slate-400 block mb-3 uppercase tracking-widest">Ürün Adı (veya yeni yazın)</label><input type="text" value={formName} onChange={e=>setFormName(e.target.value)} placeholder="Ürün adı..." className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 font-bold border-none dark:text-white" /></div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div><label className="text-[10px] font-black text-slate-400 block mb-3 uppercase tracking-widest">Miktar</label><input type="number" value={formQty} onChange={e=>setFormQty(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 border-none dark:text-white" /></div>
+                                <div><label className="text-[10px] font-black text-slate-400 block mb-3 uppercase tracking-widest">Birim Fiyat</label><input type="number" value={formPrice} onChange={e=>setFormPrice(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 border-none dark:text-white" /></div>
+                            </div>
+                        </>
+                    )}
+
+                    {manualTxType === 'PAYMENT' && (
+                        <div><label className="text-[10px] font-black text-slate-400 block mb-3 uppercase tracking-widest">Tahsil Edilen (₺)</label><input type="number" value={formAmount} onChange={e=>setFormAmount(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 text-xl font-black outline-none border-none dark:text-white" /></div>
+                    )}
+
+                    <button onClick={() => handleManualTxSubmit(manualTxType)} className={`w-full py-5 rounded-[24px] font-black uppercase tracking-widest text-white shadow-xl ${
+                        manualTxType === 'SALE' ? 'bg-blue-600 hover:bg-blue-700' :
+                        manualTxType === 'PURCHASE' ? 'bg-red-500 hover:bg-red-600' :
+                        'bg-emerald-600 hover:bg-emerald-700'
+                    } transition-all`}>
+                        {manualTxType === 'SALE' ? 'Satışı Kaydet' : manualTxType === 'PURCHASE' ? 'Alışı Kaydet' : 'Tahsilatı Kaydet'}
+                    </button>
+                </>
             )}
         </div>
       </SideDrawer>

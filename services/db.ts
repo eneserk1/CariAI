@@ -105,6 +105,36 @@ class DBService {
   async saveTransaction(tx: Transaction) { return this.put('transactions', tx); }
   async saveChatSession(session: ChatSession) { return this.put('chatSessions', session); }
   async saveProfile(profile: BusinessProfile) { return this.put('profile', { ...profile, id: 'main' }); }
+
+  async deleteCustomer(id: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction('customers', 'readwrite');
+      const store = transaction.objectStore('customers');
+      const request = store.delete(id);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async deleteProduct(id: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction('products', 'readwrite');
+      const store = transaction.objectStore('products');
+      const request = store.delete(id);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async deleteTransaction(id: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction('transactions', 'readwrite');
+      const store = transaction.objectStore('transactions');
+      const request = store.delete(id);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
 }
 
 export const dbService = new DBService();

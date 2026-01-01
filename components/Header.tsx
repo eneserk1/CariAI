@@ -5,16 +5,13 @@ interface HeaderProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   businessName: string;
-  isDarkMode: boolean;
-  onToggleDarkMode: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, businessName, isDarkMode, onToggleDarkMode }) => {
+const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, businessName }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Panel', icon: 'M4 6h16M4 12h16M4 18h16' },
-    { id: 'analysis', label: 'Analiz', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
     { id: 'chat', label: 'Asistan', icon: 'M13 10V3L4 14h7v7l9-11h-7z' },
-    { id: 'customers', label: 'Cariler', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
+    { id: 'customers', label: 'Cariler', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z' },
     { id: 'products', label: 'Ürünler', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' },
   ];
 
@@ -51,19 +48,7 @@ const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, businessName, 
         </nav>
 
         <div className="flex items-center space-x-5">
-          <button 
-            onClick={onToggleDarkMode}
-            className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center hover:scale-105 transition-transform shadow-inner"
-          >
-             {isDarkMode ? '🌙' : '☀️'}
-          </button>
-          
-          <div className="hidden lg:flex flex-col items-end border-r border-slate-100 dark:border-slate-800 pr-5">
-            <p className="text-xs font-black text-slate-900 dark:text-white tracking-tight leading-none">{businessName}</p>
-            <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest mt-1">Sistem Çevrimiçi</p>
-          </div>
-          
-          <div 
+          <div
             onClick={() => setActiveTab('profile')}
             className={`w-11 h-11 border rounded-2xl flex items-center justify-center transition-all cursor-pointer ${activeTab === 'profile' ? 'bg-slate-900 dark:bg-blue-600 text-white border-slate-900 shadow-lg' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-400 hover:text-blue-600 hover:shadow-md'}`}
           >
