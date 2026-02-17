@@ -16,12 +16,12 @@ export const INITIAL_STATE: BusinessState = {
     { id: '4', name: 'Zeynep Yılmaz', role: 'Çocuk', birthDate: '2015-08-20', balance: 0 }
   ],
   products: [ // Budget categories
-    { id: 'c1', name: 'Market & Gıda', categoryCode: 'FOOD', monthlyLimit: 8000, currentSpent: 2450, icon: '🛒', color: '#4CAF50', sku: 'FOOD', stockCount: 0, unitPrice: 0, purchasePrice: 0, vatRate: 0, category: 'Gıda' },
-    { id: 'c2', name: 'Faturalar', categoryCode: 'BILLS', monthlyLimit: 5000, currentSpent: 3200, icon: '💡', color: '#FF9800', sku: 'BILLS', stockCount: 0, unitPrice: 0, purchasePrice: 0, vatRate: 0, category: 'Faturalar' },
-    { id: 'c3', name: 'Ulaşım', categoryCode: 'TRANSPORT', monthlyLimit: 3000, currentSpent: 1500, icon: '🚗', color: '#2196F3', sku: 'TRANSPORT', stockCount: 0, unitPrice: 0, purchasePrice: 0, vatRate: 0, category: 'Ulaşım' },
-    { id: 'c4', name: 'Eğitim', categoryCode: 'EDUCATION', monthlyLimit: 6000, currentSpent: 5500, icon: '📚', color: '#9C27B0', sku: 'EDUCATION', stockCount: 0, unitPrice: 0, purchasePrice: 0, vatRate: 0, category: 'Eğitim' },
-    { id: 'c5', name: 'Sağlık', categoryCode: 'HEALTH', monthlyLimit: 2000, currentSpent: 500, icon: '🏥', color: '#F44336', sku: 'HEALTH', stockCount: 0, unitPrice: 0, purchasePrice: 0, vatRate: 0, category: 'Sağlık' },
-    { id: 'c6', name: 'Eğlence', categoryCode: 'ENTERTAINMENT', monthlyLimit: 2000, currentSpent: 800, icon: '🎬', color: '#E91E63', sku: 'ENTERTAINMENT', stockCount: 0, unitPrice: 0, purchasePrice: 0, vatRate: 0, category: 'Eğlence' }
+    { id: 'c1', name: 'Market & Gıda', categoryCode: 'FOOD', monthlyLimit: 8000, currentSpent: 2450, icon: '🛒', color: '#4CAF50', sku: 'FOOD', category: 'Gıda' },
+    { id: 'c2', name: 'Faturalar', categoryCode: 'BILLS', monthlyLimit: 5000, currentSpent: 3200, icon: '💡', color: '#FF9800', sku: 'BILLS', category: 'Faturalar' },
+    { id: 'c3', name: 'Ulaşım', categoryCode: 'TRANSPORT', monthlyLimit: 3000, currentSpent: 1500, icon: '🚗', color: '#2196F3', sku: 'TRANSPORT', category: 'Ulaşım' },
+    { id: 'c4', name: 'Eğitim', categoryCode: 'EDUCATION', monthlyLimit: 6000, currentSpent: 5500, icon: '📚', color: '#9C27B0', sku: 'EDUCATION', category: 'Eğitim' },
+    { id: 'c5', name: 'Sağlık', categoryCode: 'HEALTH', monthlyLimit: 2000, currentSpent: 500, icon: '🏥', color: '#F44336', sku: 'HEALTH', category: 'Sağlık' },
+    { id: 'c6', name: 'Eğlence', categoryCode: 'ENTERTAINMENT', monthlyLimit: 2000, currentSpent: 800, icon: '🎬', color: '#E91E63', sku: 'ENTERTAINMENT', category: 'Eğlence' }
   ],
   transactions: [
     { id: 't1', customerId: '2', productId: 'c1', productName: 'Market & Gıda', customerName: 'Ayşe Yılmaz', quantity: 1, totalAmount: 850, date: new Date().toISOString(), type: 'EXPENSE', paymentStatus: 'PAID', paymentMethod: 'CARD', note: 'Haftalık market alışverişi' },
@@ -41,7 +41,7 @@ export const INITIAL_STATE: BusinessState = {
   currentChatId: 'welcome',
   dashboardInsights: [
     { id: 'ins-1', title: 'Aylık Durum', value: 'Hedef Dahilinde', description: 'Bu ay bütçenizin %62\'sini kullandınız.', type: 'positive', icon: '💰' },
-    { id: 'ins-2', title: 'Tasarruf Fırsatı', value: '₺1,500', description: 'Eğlence kategorisinde limit altındasınız, tasarruf yapabilirsiniz!', type: 'info', icon: '🎯' },
+    { id: 'ins-2', title: 'Tasarruf Fırsatı', value: '₺1,500', description: 'Eğlence kategorisinde limitin altındasınız, tasarruf yapabilirsiniz!', type: 'info', icon: '🎯' },
     { id: 'ins-3', title: 'Yaklaşan Ödemeler', value: '2 Fatura', description: 'Bu hafta ödenmesi gereken 2 fatura var.', type: 'neutral', icon: '📅' }
   ]
 };

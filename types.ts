@@ -23,7 +23,7 @@ export interface Customer {
   phone?: string;
   birthDate?: string;
   email?: string;
-  balance: number; // Kişinin mevcut harcama bakiyesi
+  balance: number; // Net balance - positive for available funds, negative for overspending
   notes?: string;
   // Legacy fields for compatibility
   taxNumber?: string;
