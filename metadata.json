@@ -1,5 +1,5 @@
 {
-  "name": "CariAI Basit İşletme",
-  "description": "Küçük işletmeler için en basit ve en anlaşılır cari ve stok takip asistanı. Sesli ve yazılı komutlarla kolay yönetim.",
+  "name": "AileBütçe",
+  "description": "Aileler için basit ve anlaşılır bütçe takip asistanı. Gelir, gider ve tasarruf hedeflerinizi kolayca yönetin.",
   "requestFramePermissions": []
 }

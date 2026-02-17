@@ -1,50 +1,44 @@
 
-export interface BusinessProfile {
+export interface FamilyProfile {
   name: string;
-  sector: string;
-  ownerName: string;
-  address: string;
-  phone: string;
+  city: string;
+  memberCount: number;
+  monthlyBudget: number;
   currency: string;
-  taxNumber?: string;
-  taxOffice?: string;
 }
 
-export interface Customer {
+export interface FamilyMember {
   id: string;
   name: string;
-  taxNumber?: string;
-  taxOffice?: string;
+  role: string; // Anne, Baba, Çocuk, vb.
   phone?: string;
-  address?: string;
+  birthDate?: string;
   email?: string;
-  balance: number; 
+  balance: number; // Kişinin mevcut harcama bakiyesi
   notes?: string;
 }
 
-export interface Product {
+export interface BudgetCategory {
   id: string;
   name: string;
-  sku: string;
-  stockCount: number;
-  unitPrice: number;
-  purchasePrice: number;
-  vatRate: number; 
-  category: string;
+  categoryCode: string;
+  monthlyLimit: number;
+  currentSpent: number;
+  icon: string;
+  color: string;
 }
 
 export interface Transaction {
   id: string;
-  customerId: string;
-  productId?: string;
-  productName?: string;
-  customerName: string;
+  memberId: string;
+  categoryId?: string;
+  categoryName?: string;
+  memberName: string;
   quantity?: number;
   totalAmount: number;
-  vatAmount?: number;
   date: string;
-  type: 'SALE' | 'PURCHASE' | 'PAYMENT' | 'EXPENSE';
-  paymentStatus: 'PAID' | 'PENDING';
+  type: 'INCOME' | 'EXPENSE' | 'SAVING' | 'TRANSFER';
+  paymentMethod: 'CASH' | 'CARD' | 'BANK';
   note?: string;
 }
 
@@ -76,12 +70,18 @@ export interface DashboardInsight {
   icon?: string;
 }
 
-export interface BusinessState {
-  profile: BusinessProfile;
-  customers: Customer[];
-  products: Product[];
+export interface FamilyBudgetState {
+  profile: FamilyProfile;
+  members: FamilyMember[];
+  categories: BudgetCategory[];
   transactions: Transaction[];
   chatSessions: ChatSession[];
   currentChatId: string | null;
   dashboardInsights: DashboardInsight[];
 }
+
+// Legacy types for backward compatibility
+export type BusinessProfile = FamilyProfile;
+export type Customer = FamilyMember;
+export type Product = BudgetCategory;
+export type BusinessState = FamilyBudgetState;

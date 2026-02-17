@@ -1,20 +1,36 @@
 <div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+<img width="1200" height="475" alt="AileBütçe Banner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# Run and deploy your AI Studio app
+# AileBütçe - Aile Bütçe Takip Uygulaması
 
-This contains everything you need to run your app locally.
+Aileler için basit ve anlaşılır bütçe takip asistanı. Yapay zeka destekli gelir, gider ve tasarruf yönetimi.
 
-View your app in AI Studio: https://ai.studio/apps/drive/1TDES26VbsIcpEX4J6dfM7dDVKN_y1Bp3
+## Özellikler
 
-## Run Locally
+- 💰 Gelir ve gider takibi
+- 👨‍👩‍👧‍👦 Aile üyeleri bazında harcama yönetimi
+- 📊 Detaylı finansal raporlar ve grafikler
+- 🎯 Bütçe hedefleri ve tasarruf planları
+- 🤖 Yapay zeka destekli finansal asistan
+- 📱 Mobil uyumlu tasarım
 
-**Prerequisites:**  Node.js
+## Yerel Olarak Çalıştırma
 
+**Gereksinimler:** Node.js
 
-1. Install dependencies:
+1. Bağımlılıkları yükleyin:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+2. `.env.local` dosyasında `GEMINI_API_KEY` değerini Gemini API anahtarınızla güncelleyin
+3. Uygulamayı çalıştırın:
    `npm run dev`
+
+## Kullanım
+
+Uygulama başlatıldıktan sonra:
+- Aile profili oluşturun
+- Aile üyelerinizi ekleyin
+- Gelir ve giderlerinizi kaydedin
+- Yapay zeka asistanından yardım alın
+- Finansal analizlerinizi görüntüleyin
+
