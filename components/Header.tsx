@@ -11,8 +11,8 @@ const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, businessName }
   const menuItems = [
     { id: 'dashboard', label: 'Panel', icon: 'M4 6h16M4 12h16M4 18h16' },
     { id: 'chat', label: 'Asistan', icon: 'M13 10V3L4 14h7v7l9-11h-7z' },
-    { id: 'customers', label: 'Cariler', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z' },
-    { id: 'products', label: 'Ürünler', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' },
+    { id: 'customers', label: 'Üyeler', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z' },
+    { id: 'products', label: 'Kategoriler', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' },
   ];
 
   return (
@@ -20,10 +20,10 @@ const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, businessName }
       <div className="pointer-events-auto bg-white/70 dark:bg-slate-900/70 glass-effect border border-white/40 dark:border-slate-800 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.08)] rounded-[32px] flex items-center justify-between w-full max-w-7xl px-8 py-4 transition-all duration-500">
         
         <div className="flex items-center cursor-pointer group" onClick={() => setActiveTab('dashboard')}>
-          <div className="bg-slate-900 dark:bg-blue-600 rounded-[14px] flex items-center justify-center text-white font-black shadow-lg transform group-hover:scale-110 transition-transform w-11 h-11 text-xl">D</div>
+          <div className="bg-slate-900 dark:bg-blue-600 rounded-[14px] flex items-center justify-center text-white font-black shadow-lg transform group-hover:scale-110 transition-transform w-11 h-11 text-xl">A</div>
           <div className="flex flex-col ml-3">
-             <span className="text-lg font-black tracking-tight text-slate-900 dark:text-white leading-none">DefterAI</span>
-             <span className="text-[9px] font-black text-slate-400 tracking-widest uppercase mt-0.5">V4 Premium</span>
+             <span className="text-lg font-black tracking-tight text-slate-900 dark:text-white leading-none">AileBütçe</span>
+             <span className="text-[9px] font-black text-slate-400 tracking-widest uppercase mt-0.5">Aile Asistanı</span>
           </div>
         </div>
 

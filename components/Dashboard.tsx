@@ -74,13 +74,13 @@ const Dashboard: React.FC<DashboardProps> = ({
                   {isProcessing ? '✨' : '🧠'}
               </div>
               <div className="flex-1">
-                  <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-1">Akıllı Defter Asistanı</h2>
+                  <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-1">Akıllı Aile Bütçe Asistanı</h2>
                   <input
                       type="text"
                       value={query}
                       onChange={handleInputChange}
                       onKeyDown={handleKeyDown}
-                      placeholder="Örn: 'Global Lojistik'e 2500 TL lastik sat'..."
+                      placeholder="Örn: 'Market alışverişine 500 TL harcadım'..."
                       className="w-full bg-transparent border-none text-xl md:text-2xl font-black text-slate-900 dark:text-white placeholder:text-slate-200 dark:placeholder:text-slate-700 focus:outline-none focus:ring-0"
                   />
               </div>
@@ -98,7 +98,7 @@ const Dashboard: React.FC<DashboardProps> = ({
           <div className="relative z-10">
             <p className="text-[10px] font-black text-blue-100 uppercase tracking-widest mb-3">HIZLI MENÜ</p>
             <h3 className="text-2xl font-black text-white">İşlem Ekle</h3>
-            <p className="text-blue-100 text-[10px] font-bold mt-1 uppercase opacity-80">Satış, Alış, Tahsilat...</p>
+            <p className="text-blue-100 text-[10px] font-bold mt-1 uppercase opacity-80">Gelir, Gider, Tasarruf...</p>
           </div>
           <span className="absolute -bottom-4 -right-4 text-7xl opacity-10 group-hover:rotate-12 transition-transform">⚡</span>
           
@@ -131,12 +131,12 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
 
         <div className="bg-white dark:bg-slate-900 p-8 rounded-[32px] border border-slate-100 dark:border-slate-800 shadow-sm">
-          <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-3">ALACAKLAR</p>
+          <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-3">GELİRLER</p>
           <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">₺{totalReceivable.toLocaleString('tr-TR')}</p>
         </div>
 
         <div className="bg-white dark:bg-slate-900 p-8 rounded-[32px] border border-slate-100 dark:border-slate-800 shadow-sm">
-          <p className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-3">BORÇLAR</p>
+          <p className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-3">GİDERLER</p>
           <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">₺{totalPayable.toLocaleString('tr-TR')}</p>
         </div>
 
@@ -154,7 +154,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-8 md:p-10 rounded-[40px] border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col h-full">
             <div className="flex justify-between items-center mb-8">
                 <div>
-                    <h3 className="font-black text-xl text-slate-900 dark:text-white">İşletme Özeti</h3>
+                    <h3 className="font-black text-xl text-slate-900 dark:text-white">Aile Bütçe Özeti</h3>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Son 7 Günlük Hareket</p>
                 </div>
             </div>
