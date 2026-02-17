@@ -1,44 +1,67 @@
 
-export interface FamilyProfile {
+// Family Budget Profile
+export interface BusinessProfile {
   name: string;
-  city: string;
-  memberCount: number;
-  monthlyBudget: number;
+  city?: string;
+  memberCount?: number;
+  monthlyBudget?: number;
   currency: string;
+  // Legacy fields for compatibility
+  sector?: string;
+  ownerName?: string;
+  address?: string;
+  phone?: string;
+  taxNumber?: string;
+  taxOffice?: string;
 }
 
-export interface FamilyMember {
+// Family Member (mapped to Customer for compatibility)
+export interface Customer {
   id: string;
   name: string;
-  role: string; // Anne, Baba, Çocuk, vb.
+  role?: string; // Anne, Baba, Çocuk, vb. (family context)
   phone?: string;
   birthDate?: string;
   email?: string;
   balance: number; // Kişinin mevcut harcama bakiyesi
   notes?: string;
+  // Legacy fields for compatibility
+  taxNumber?: string;
+  taxOffice?: string;
+  address?: string;
 }
 
-export interface BudgetCategory {
+// Budget Category (mapped to Product for compatibility)
+export interface Product {
   id: string;
   name: string;
-  categoryCode: string;
-  monthlyLimit: number;
-  currentSpent: number;
-  icon: string;
-  color: string;
+  categoryCode?: string; // Budget category code
+  monthlyLimit?: number; // Monthly limit for this category
+  currentSpent?: number; // Current spent in this category
+  icon?: string;
+  color?: string;
+  // Legacy fields for compatibility
+  sku?: string;
+  stockCount?: number;
+  unitPrice?: number;
+  purchasePrice?: number;
+  vatRate?: number;
+  category?: string;
 }
 
 export interface Transaction {
   id: string;
-  memberId: string;
-  categoryId?: string;
-  categoryName?: string;
-  memberName: string;
+  customerId: string; // memberId in family context
+  productId?: string; // categoryId in family context
+  productName?: string; // categoryName in family context
+  customerName: string; // memberName in family context
   quantity?: number;
   totalAmount: number;
+  vatAmount?: number; // Not used in family budget
   date: string;
-  type: 'INCOME' | 'EXPENSE' | 'SAVING' | 'TRANSFER';
-  paymentMethod: 'CASH' | 'CARD' | 'BANK';
+  type: 'SALE' | 'PURCHASE' | 'PAYMENT' | 'EXPENSE' | 'INCOME' | 'SAVING' | 'TRANSFER';
+  paymentStatus?: 'PAID' | 'PENDING'; // paymentMethod in family context
+  paymentMethod?: 'CASH' | 'CARD' | 'BANK';
   note?: string;
 }
 
@@ -70,18 +93,12 @@ export interface DashboardInsight {
   icon?: string;
 }
 
-export interface FamilyBudgetState {
-  profile: FamilyProfile;
-  members: FamilyMember[];
-  categories: BudgetCategory[];
+export interface BusinessState {
+  profile: BusinessProfile;
+  customers: Customer[]; // Family members
+  products: Product[]; // Budget categories
   transactions: Transaction[];
   chatSessions: ChatSession[];
   currentChatId: string | null;
   dashboardInsights: DashboardInsight[];
 }
-
-// Legacy types for backward compatibility
-export type BusinessProfile = FamilyProfile;
-export type Customer = FamilyMember;
-export type Product = BudgetCategory;
-export type BusinessState = FamilyBudgetState;
